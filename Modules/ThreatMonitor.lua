@@ -46,7 +46,7 @@ local function CheckThreat()
             if not isMemberTanking then
                 local pct = threatPct or rawThreatPct
                 if pct and pct >= threshold then
-                    local memberName = UnitName(unit)
+                    local memberName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName(unit)) or UnitName(unit)
                     if memberName then
                         local lastWhisper = whisperThrottle[memberName] or 0
                         if now - lastWhisper >= throttleSeconds then
@@ -109,8 +109,9 @@ end
 
 -- Test Harness
 function ThreatMonitor:SimulateWhisper(targetPlayerName, threatPercent, mobName)
-    local recipient = targetPlayerName or UnitName("player")
+    local recipient = targetPlayerName or (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
     local pct = threatPercent or 95
     local mob = mobName or UnitName("target") or "Training Dummy"
+    TAF:Print("Sending test whisper to |cffFFFFFF%s|r...", recipient)
     TAF.Announcer:SendWhisper(recipient, pct, mob)
 end

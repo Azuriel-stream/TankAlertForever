@@ -26,6 +26,40 @@ function TAF.Utils.IsRaidLeaderOrAssist()
     return false
 end
 
+-- Resolve Full Character Name (supporting WoW:Forever first and last names)
+function TAF.Utils.GetUnitFullName(unit)
+    if not unit or not UnitExists(unit) then
+        -- Also support passing "player" even before target is selected
+        if unit ~= "player" then return nil end
+    end
+
+    local name, surname = UnitName(unit)
+    if not name or name == "" then return nil end
+
+    if surname and surname ~= "" then
+        return name .. " " .. surname
+    end
+
+    if UnitFullName then
+        local fn, ln = UnitFullName(unit)
+        if ln and ln ~= "" then
+            return fn .. " " .. ln
+        end
+    end
+
+    if GetUnitName then
+        local full = GetUnitName(unit, true)
+        if full and full ~= "" then
+            if string.find(full, "-") then
+                return (string.gsub(full, "-", " "))
+            end
+            return full
+        end
+    end
+
+    return name
+end
+
 -- Resolve Raid Target Icon Token ({rt1} to {rt8})
 function TAF.Utils.GetRaidTargetToken(unit)
     if not unit or not GetRaidTargetIndex then return "" end

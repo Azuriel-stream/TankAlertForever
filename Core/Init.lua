@@ -115,7 +115,7 @@ local function OnEvent(self, event, arg1, ...)
             TAF.playerClass = class
         end
         TAF.playerGUID = UnitGUID("player")
-        TAF.playerName = UnitName("player")
+        TAF.playerName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
 
         -- Enable modules if global master switch is on
         if TAF.db and TAF.db.global and TAF.db.global.enabled then

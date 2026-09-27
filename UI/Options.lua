@@ -273,7 +273,8 @@ local function CreateOptionsPanel()
     btnWhisper:SetPoint("LEFT", btnDisarm, "RIGHT", 10, 0)
     btnWhisper:SetText("Test Whisper")
     btnWhisper:SetScript("OnClick", function()
-        TAF.ThreatMonitor:SimulateWhisper(UnitName("player"), 95)
+        local fullName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
+        TAF.ThreatMonitor:SimulateWhisper(fullName, 95)
     end)
 
     -- Synchronize UI with current settings on Show
@@ -319,18 +320,7 @@ function Options:Toggle()
 end
 
 function Options:OnInitialize()
-    CreateOptionsPanel()
-
-    -- Integrate into Blizzard Settings if available
-    pcall(function()
-        if Settings and Settings.RegisterCanvasLayoutCategory then
-            local category = Settings.RegisterCanvasLayoutCategory(optionsPanel, L["ADDON_TITLE"])
-            Settings.RegisterAddOnCategory(category)
-            categoryID = category:GetID()
-        elseif InterfaceOptions_AddCategory then
-            InterfaceOptions_AddCategory(optionsPanel)
-        end
-    end)
+    -- Lazy initialization: panel is constructed on demand to avoid any load-time taint
 end
 
 -- =========================================================================
@@ -379,15 +369,17 @@ local function HandleSlashCommands(msg)
             TAF.LossOfControl:SimulateLOC("STUNNED")
         elseif arg == "disarm" then
             TAF.LossOfControl:SimulateDisarm()
-        elseif arg == "whisper" then
-            TAF.ThreatMonitor:SimulateWhisper(UnitName("player"), 95)
+        elseif string.sub(arg, 1, 7) == "whisper" then
+            local customTarget = string.match(arg, "^whisper%s+(.+)$")
+            local target = customTarget or (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
+            TAF.ThreatMonitor:SimulateWhisper(target, 95)
         elseif arg == "miss" or arg == "" then
             local pClass = TAF.playerClass or "WARRIOR"
             local abilityOrder = TAF.SpellData and TAF.SpellData.Order and TAF.SpellData.Order[pClass]
             local testSpell = (abilityOrder and abilityOrder[1]) or "Taunt"
             TAF.AbilityAlerts:SimulateMiss(testSpell, "RESISTED")
         else
-            TAF:Print("Available test options: |cffFFFFFF/ta test miss|r, |cffFFFFFF/ta test cc|r, |cffFFFFFF/ta test disarm|r, |cffFFFFFF/ta test whisper|r")
+            TAF:Print("Available test options: |cffFFFFFF/ta test miss|r, |cffFFFFFF/ta test cc|r, |cffFFFFFF/ta test disarm|r, |cffFFFFFF/ta test whisper [target]|r")
         end
     else
         TAF:Print("Unknown command. Type |cffFFFFFF/ta|r to open settings.")
