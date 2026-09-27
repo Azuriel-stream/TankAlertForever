@@ -1,7 +1,7 @@
 local ADDON_NAME, TAF = ...
 
 local ThreatMonitor = TAF:RegisterModule("ThreatMonitor")
-local frame = CreateFrame("Frame")
+local frame = CreateFrame("Frame", "TAF_ThreatMonitorFrame")
 
 local ticker = nil
 local whisperThrottle = {}

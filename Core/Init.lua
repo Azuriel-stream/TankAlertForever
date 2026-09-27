@@ -6,17 +6,15 @@ TAF.modules = {}
 TAF.isInitialized = false
 TAF.isEnabled = false
 
-local eventFrame = CreateFrame("Frame")
+local eventFrame = CreateFrame("Frame", "TAF_EventFrame")
 TAF.eventFrame = eventFrame
 
--- Security Action Interceptor: Captures exact blocked functions and callstack
-local securityFrame = CreateFrame("Frame")
-securityFrame:RegisterEvent("ADDON_ACTION_BLOCKED")
-securityFrame:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+-- Security Action Interceptor: Captures blocked/forbidden functions quietly for /ta debug
+local securityFrame = CreateFrame("Frame", "TAF_SecurityFrame")
+pcall(securityFrame.RegisterEvent, securityFrame, "ADDON_ACTION_BLOCKED")
+pcall(securityFrame.RegisterEvent, securityFrame, "ADDON_ACTION_FORBIDDEN")
 securityFrame:SetScript("OnEvent", function(self, event, addonName, functionName)
     local stack = (debugstack and debugstack(2, 8, 8)) or "No stack available"
-    local alert = string.format("[TAF Security Alert] %s on '%s' -> function '%s'", tostring(event), tostring(addonName), tostring(functionName))
-    print("|cffFF0000" .. alert .. "|r")
     _G["TAF_BLOCKED_FUNC"] = functionName
     _G["TAF_BLOCKED_STACK"] = stack
     _G["TAF_BLOCKED_EVENT"] = event

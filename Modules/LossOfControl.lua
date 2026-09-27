@@ -1,7 +1,7 @@
 local ADDON_NAME, TAF = ...
 
 local LossOfControl = TAF:RegisterModule("LossOfControl")
-local frame = CreateFrame("Frame")
+local frame = CreateFrame("Frame", "TAF_LossOfControlFrame")
 
 -- Track active CC states to prevent duplicate triggering
 local activeStates = {
@@ -83,53 +83,50 @@ local function TriggerAlert(alertType)
     end
 end
 
--- 1. Combat Log Aura Detection (100% un-tainted, completely avoids secure frame interference)
-local function OnCombatLogEvent()
-    if not TAF.isEnabled then return end
+-- 1. Modern C_LossOfControl API Handler (Official replacement for CLEU LOC tracking)
+local function OnLossOfControlAdded(eventIndex)
+    if not C_LossOfControl or not C_LossOfControl.GetActiveLossOfControlData then return end
+    local data = C_LossOfControl.GetActiveLossOfControlData(eventIndex)
+    if not data then return end
 
-    local timestamp, subevent, hideCaster,
-          sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
-          destGUID, destName, destFlags, destRaidFlags,
-          arg12, arg13, arg14 = CombatLogGetCurrentEventInfo()
+    local locType = data.locType or ""
+    local spellName = data.name or (data.spellID and (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(data.spellID) or GetSpellInfo(data.spellID))) or ""
+    local alertType = nil
 
-    if destGUID ~= TAF.playerGUID then
-        return
+    if locType == "STUN" or locType == "STUN_MECHANIC" then
+        alertType = "STUNNED"
+    elseif locType == "FEAR" or locType == "FEAR_MECHANIC" or locType == "CHARM" then
+        alertType = "FEARED"
+    elseif locType == "CONFUSE" or locType == "INCAPACITATE" or locType == "SLEEP" or locType == "PACIFY" then
+        alertType = "INCAPACITATED"
+    elseif locType == "DISARM" then
+        alertType = "DISARMED"
     end
 
-    if subevent == "SPELL_AURA_APPLIED" or subevent == "SPELL_AURA_REFRESH" then
-        local spellID = arg12
-        local spellName = arg13
-
-        if spellName then
-            local lowerName = string.lower(spellName)
-            local alertType = CC_SPELLS[lowerName]
-
-            -- Check for generic patterns
-            if not alertType then
-                if string.find(lowerName, "stun") then
-                    alertType = "STUNNED"
-                elseif string.find(lowerName, "fear") or string.find(lowerName, "flee") or string.find(lowerName, "horror") then
-                    alertType = "FEARED"
-                elseif string.find(lowerName, "incapacitat") or string.find(lowerName, "sleep") or string.find(lowerName, "polymorph") then
-                    alertType = "INCAPACITATED"
-                elseif string.find(lowerName, "disarm") then
-                    alertType = "DISARMED"
-                end
-            end
-
-            if alertType and not activeStates[alertType] then
-                activeStates[alertType] = true
-                TriggerAlert(alertType)
-            end
+    if not alertType and spellName ~= "" then
+        local lower = string.lower(spellName)
+        alertType = CC_SPELLS[lower]
+        if not alertType then
+            if string.find(lower, "stun") then alertType = "STUNNED"
+            elseif string.find(lower, "fear") or string.find(lower, "flee") then alertType = "FEARED"
+            elseif string.find(lower, "incapacitat") or string.find(lower, "sleep") then alertType = "INCAPACITATED"
+            elseif string.find(lower, "disarm") then alertType = "DISARMED" end
         end
-    elseif subevent == "SPELL_AURA_REMOVED" then
-        local spellName = arg13
-        if spellName then
-            local lowerName = string.lower(spellName)
-            local alertType = CC_SPELLS[lowerName]
-            if alertType then
-                activeStates[alertType] = false
-            end
+    end
+
+    if alertType and not activeStates[alertType] then
+        activeStates[alertType] = true
+        TriggerAlert(alertType)
+    end
+end
+
+local function OnLossOfControlUpdate()
+    if C_LossOfControl and C_LossOfControl.GetActiveLossOfControlDataCount then
+        if C_LossOfControl.GetActiveLossOfControlDataCount() == 0 then
+            activeStates.STUNNED = false
+            activeStates.FEARED = false
+            activeStates.INCAPACITATED = false
+            activeStates.DISARMED = false
         end
     end
 end
@@ -140,15 +137,24 @@ local function OnUIErrorMessage(message)
 
     local lower = string.lower(message)
 
-    if string.find(lower, "while stunned") then
-        TriggerAlert("STUNNED")
-    elseif string.find(lower, "while feared") or string.find(lower, "while fleeing") then
-        TriggerAlert("FEARED")
-    elseif string.find(lower, "while incapacitated") or string.find(lower, "while confused") then
-        TriggerAlert("INCAPACITATED")
-    elseif string.find(lower, "must have a melee weapon equipped in the main hand") then
-        -- Verify weapon is actually equipped in slot 16 to confirm it's a Disarm
-        if TAF.Utils.HasMeleeWeaponEquipped() then
+    if string.find(lower, "while stunned") or string.find(lower, "you are stunned") then
+        if not activeStates.STUNNED then
+            activeStates.STUNNED = true
+            TriggerAlert("STUNNED")
+        end
+    elseif string.find(lower, "while feared") or string.find(lower, "while fleeing") or string.find(lower, "you are fleeing") then
+        if not activeStates.FEARED then
+            activeStates.FEARED = true
+            TriggerAlert("FEARED")
+        end
+    elseif string.find(lower, "while incapacitated") or string.find(lower, "while confused") or string.find(lower, "while asleep") or string.find(lower, "you are incapacitated") then
+        if not activeStates.INCAPACITATED then
+            activeStates.INCAPACITATED = true
+            TriggerAlert("INCAPACITATED")
+        end
+    elseif string.find(lower, "must have a melee weapon equipped in the main hand") or string.find(lower, "while disarmed") or string.find(lower, "you are disarmed") then
+        if TAF.Utils.HasMeleeWeaponEquipped() and not activeStates.DISARMED then
+            activeStates.DISARMED = true
             TriggerAlert("DISARMED")
         end
     end
@@ -157,8 +163,10 @@ end
 local function OnEvent(self, event, arg1, ...)
     if not TAF.isEnabled then return end
 
-    if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        OnCombatLogEvent()
+    if event == "LOSS_OF_CONTROL_ADDED" then
+        OnLossOfControlAdded(arg1)
+    elseif event == "LOSS_OF_CONTROL_UPDATE" then
+        OnLossOfControlUpdate()
     elseif event == "UI_ERROR_MESSAGE" then
         local message = type(arg1) == "string" and arg1 or ...
         OnUIErrorMessage(message)
@@ -170,7 +178,8 @@ function LossOfControl:OnInitialize()
 end
 
 function LossOfControl:OnEnable()
-    frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+    pcall(frame.RegisterEvent, frame, "LOSS_OF_CONTROL_ADDED")
+    pcall(frame.RegisterEvent, frame, "LOSS_OF_CONTROL_UPDATE")
     frame:RegisterEvent("UI_ERROR_MESSAGE")
     frame:SetScript("OnEvent", OnEvent)
 end
@@ -183,9 +192,12 @@ end
 
 -- Test Harness
 function LossOfControl:SimulateLOC(locType)
-    TriggerAlert(locType or "STUNNED")
+    local testType = locType or "STUNNED"
+    TAF:Print("Simulating Loss of Control: |cffFFFFFF%s|r", testType)
+    TriggerAlert(testType)
 end
 
 function LossOfControl:SimulateDisarm()
+    TAF:Print("Simulating Disarm...")
     TriggerAlert("DISARMED")
 end
