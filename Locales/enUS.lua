@@ -11,14 +11,14 @@ L["ADDON_DISABLED"] = "|cffFF4444[TankAlert]|r Disabled."
 L["CLASS_NOT_SUPPORTED"] = "|cffFF4444[TankAlert]|r Class %s is not supported."
 
 -- Alert Formats (Combat & Chat)
-L["ALERT_ABILITY_FAIL_TARGET"] = "%s %s on %s. Watch threat!"
-L["ALERT_ABILITY_FAIL_NOTARGET"] = "%s %s. Watch threat!"
-L["ALERT_CC_RW"] = "%s is %s! Watch threat on %s!"
-L["ALERT_CC_RW_NOTARGET"] = "%s is %s! Watch threat!"
-L["ALERT_CC_SELF"] = "I'm %s! Watch threat!"
-L["ALERT_DISARM_RW"] = "%s is DISARMED! Watch threat on %s!"
-L["ALERT_DISARM_RW_NOTARGET"] = "%s is DISARMED! Watch threat!"
-L["ALERT_DISARM_SELF"] = "I'm DISARMED! Watch threat!"
+L["ALERT_ABILITY_FAIL_TARGET"] = ">> %s %s on %s! << (Watch threat)"
+L["ALERT_ABILITY_FAIL_NOTARGET"] = ">> %s %s! << (Watch threat)"
+L["ALERT_CC_RW"] = ">> %s is %s on %s! (Watch threat) <<"
+L["ALERT_CC_RW_NOTARGET"] = ">> %s is %s! (Watch threat) <<"
+L["ALERT_CC_SELF"] = ">> I'm %s! (Watch threat) <<"
+L["ALERT_DISARM_RW"] = ">> %s is DISARMED on %s! (Watch threat) <<"
+L["ALERT_DISARM_RW_NOTARGET"] = ">> %s is DISARMED! (Watch threat) <<"
+L["ALERT_DISARM_SELF"] = ">> I'm DISARMED! (Watch threat) <<"
 L["ALERT_THREAT_WHISPER"] = "[TankAlert] Careful! You are at %d%% threat on %s!"
 
 -- Failure Types

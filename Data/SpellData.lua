@@ -119,14 +119,15 @@ function TAF.SpellData:FindAbility(classKey, spellID, spellName)
 
     -- 1. Check ID lookup
     local idMap = self.IDLookup[classKey]
-    if idMap and spellID and idMap[spellID] then
+    if idMap and spellID and not (TAF.Utils and TAF.Utils.IsSecret and TAF.Utils.IsSecret(spellID)) and idMap[spellID] then
         return idMap[spellID]
     end
 
     -- 2. Check Name lookup
     local nameMap = self.NameLookup[classKey]
-    if nameMap and spellName then
-        local lowerName = string.lower(spellName)
+    local safeName = (TAF.Utils and TAF.Utils.SafeString and TAF.Utils.SafeString(spellName, nil)) or (type(spellName) == "string" and spellName or nil)
+    if nameMap and safeName and safeName ~= "" then
+        local lowerName = string.lower(safeName)
         if nameMap[lowerName] then
             return nameMap[lowerName]
         end

@@ -8,24 +8,53 @@ local activeCast = nil
 local CAST_EXPIRY_SECONDS = 1.5
 
 local MISS_TYPE_MAP = {
-    ["MISS"] = "MISSED",
-    ["DODGE"] = "DODGED",
-    ["PARRY"] = "PARRIED",
-    ["BLOCK"] = "BLOCKED",
-    ["RESIST"] = "RESISTED",
-    ["ABSORB"] = "ABSORBED",
-    ["IMMUNE"] = "IMMUNE",
+    ["MISS"]    = "MISSED",
+    ["DODGE"]   = "DODGED",
+    ["PARRY"]   = "PARRIED",
+    ["BLOCK"]   = "BLOCKED",
+    ["RESIST"]  = "RESISTED",
+    ["IMMUNE"]  = "IMMUNE",
     ["DEFLECT"] = "DEFLECTED",
     ["REFLECT"] = "REFLECTED",
+    ["EVADE"]   = "EVADED",
 }
 
--- 1. Track player casts of monitored abilities
+-- 1. Track player cast intent of monitored abilities
 local function OnSpellcastSent(unit, target, castGUID, spellID)
     if unit ~= "player" then return end
     if not TAF.isEnabled then return end
 
-    local spellName = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID)) or (GetSpellInfo and GetSpellInfo(spellID)) or ""
-    local abilityName = TAF.SpellData:FindAbility(TAF.playerClass, spellID, spellName)
+    -- Handle both modern (unit, target, castGUID, spellID) and legacy (unit, spell, rank, target) signatures
+    local resolvedSpellID = type(spellID) == "number" and spellID or (type(castGUID) == "number" and castGUID or nil)
+    local rawSpellName = type(target) == "string" and target or nil
+    local spellName = ""
+
+    if resolvedSpellID then
+        if C_Spell and C_Spell.GetSpellInfo then
+            local ok, info = pcall(C_Spell.GetSpellInfo, resolvedSpellID)
+            if ok and type(info) == "table" and info.name then
+                spellName = TAF.Utils.SafeString(info.name, "")
+            elseif ok and type(info) == "string" then
+                spellName = TAF.Utils.SafeString(info, "")
+            end
+        end
+        if spellName == "" and C_Spell and C_Spell.GetSpellName then
+            local ok, name = pcall(C_Spell.GetSpellName, resolvedSpellID)
+            if ok and name then
+                spellName = TAF.Utils.SafeString(name, "")
+            end
+        end
+        if spellName == "" and GetSpellInfo then
+            local ok, name = pcall(GetSpellInfo, resolvedSpellID)
+            if ok and name then
+                spellName = TAF.Utils.SafeString(name, "")
+            end
+        end
+    elseif rawSpellName and rawSpellName ~= "" then
+        spellName = rawSpellName
+    end
+
+    local abilityName = TAF.SpellData:FindAbility(TAF.playerClass, resolvedSpellID, spellName)
     if not abilityName then return end
 
     -- Verify if player has enabled tracking for this specific ability
@@ -33,76 +62,101 @@ local function OnSpellcastSent(unit, target, castGUID, spellID)
         return
     end
 
-    local cleanTarget = (target and target ~= "") and target or UnitName("target") or "Unknown Target"
-    if string.find(cleanTarget, "-") then
-        cleanTarget = string.match(cleanTarget, "([^-]+)")
+    -- Target resolution with secret-value protection (WoW 12.0+ compatibility)
+    local safeTarget = TAF.Utils.SafeString(target, nil)
+    if not safeTarget or safeTarget == "" or safeTarget == spellName or safeTarget:lower() == "target" then
+        local rawUnitTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
+        safeTarget = TAF.Utils.SafeString(rawUnitTarget, nil)
+    end
+
+    local cleanTarget = safeTarget
+    if cleanTarget and cleanTarget ~= "" and cleanTarget:lower() ~= "target" then
+        if string.find(cleanTarget, "-") then
+            cleanTarget = string.match(cleanTarget, "([^-]+)") or cleanTarget
+        end
+    else
+        cleanTarget = nil
+    end
+
+    local castRaidIcon = TAF.Utils.GetRaidTargetToken("target")
+    if not castRaidIcon or castRaidIcon == "" then
+        castRaidIcon = TAF.Utils.GetRaidTargetToken("mouseover")
     end
 
     activeCast = {
         abilityName = abilityName,
         target = cleanTarget,
+        raidIcon = castRaidIcon,
         timestamp = GetTime(),
-        castGUID = castGUID,
-        spellID = spellID,
+        castGUID = TAF.Utils.SafeString(castGUID, nil),
+        spellID = resolvedSpellID,
     }
 end
 
--- 2. Floating combat text updates (MISS, DODGE, PARRY, BLOCK, RESIST, IMMUNE)
-local function OnCombatTextUpdate(messageType)
+-- 2. Detect combat avoidance on target via UNIT_COMBAT
+local function OnUnitCombat(unit, action, modifier, amount, damageType)
     if not activeCast then return end
-    if (GetTime() - activeCast.timestamp) > CAST_EXPIRY_SECONDS then
+
+    -- Filter: Only inspect combat feedback occurring on the target, focus, or mouseover
+    if unit ~= "target" and unit ~= "focus" and unit ~= "mouseover" then
+        return
+    end
+
+    local now = GetTime()
+    if (now - activeCast.timestamp) > CAST_EXPIRY_SECONDS then
         activeCast = nil
         return
     end
 
-    local mappedMiss = MISS_TYPE_MAP[messageType]
+    local safeAction = TAF.Utils.SafeString(action, "")
+
+    -- If damage landed successfully, the strike did not miss or fail
+    if safeAction == "WOUND" or safeAction == "DAMAGE" then
+        activeCast = nil
+        return
+    end
+
+    local mappedMiss = MISS_TYPE_MAP[safeAction]
     if mappedMiss then
-        local targetName = activeCast.target
-        local raidIcon = TAF.Utils.GetRaidTargetToken("target")
-        TAF.Announcer:SendAbilityAlert(activeCast.abilityName, mappedMiss, targetName, raidIcon)
+        local rawTarget = nil
+        if activeCast.target and activeCast.target ~= "" and activeCast.target:lower() ~= "target" then
+            rawTarget = activeCast.target
+        end
+        if not rawTarget or rawTarget == "" or rawTarget:lower() == "target" then
+            rawTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName(unit)) or UnitName(unit)
+        end
+        if not rawTarget or rawTarget == "" or rawTarget:lower() == "target" then
+            rawTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
+        end
+        local targetName = TAF.Utils.SafeString(rawTarget, "Target")
+
+        -- Resolve raid icon: check active unit first, fallback to cached castRaidIcon or current target/mouseover/focus
+        local raidIcon = TAF.Utils.GetRaidTargetToken(unit)
+        if not raidIcon or raidIcon == "" then
+            if activeCast.raidIcon and activeCast.raidIcon ~= "" then
+                raidIcon = activeCast.raidIcon
+            else
+                raidIcon = TAF.Utils.GetRaidTargetToken("target")
+                if not raidIcon or raidIcon == "" then
+                    raidIcon = TAF.Utils.GetRaidTargetToken("mouseover")
+                    if not raidIcon or raidIcon == "" then
+                        raidIcon = TAF.Utils.GetRaidTargetToken("focus")
+                    end
+                end
+            end
+        end
+
+        TAF.Announcer:SendAbilityAlert(activeCast.abilityName, mappedMiss, targetName, raidIcon, activeCast.spellID)
         activeCast = nil
     end
 end
 
--- 3. Formatted combat log text fallback (e.g. from COMBAT_LOG_MESSAGE in modern clients)
-local function OnCombatLogMessage(message)
-    if not message or type(message) ~= "string" or not activeCast then return end
-    if (GetTime() - activeCast.timestamp) > CAST_EXPIRY_SECONDS then
-        activeCast = nil
-        return
-    end
-
-    local lower = string.lower(message)
-    local missType = nil
-    if string.find(lower, "resist") then
-        missType = "RESISTED"
-    elseif string.find(lower, "dodge") then
-        missType = "DODGED"
-    elseif string.find(lower, "parr") then
-        missType = "PARRIED"
-    elseif string.find(lower, "block") then
-        missType = "BLOCKED"
-    elseif string.find(lower, "miss") then
-        missType = "MISSED"
-    elseif string.find(lower, "immune") then
-        missType = "IMMUNE"
-    elseif string.find(lower, "deflect") then
-        missType = "DEFLECTED"
-    elseif string.find(lower, "reflect") then
-        missType = "REFLECTED"
-    end
-
-    if missType then
-        local targetName = activeCast.target
-        local raidIcon = TAF.Utils.GetRaidTargetToken("target")
-        TAF.Announcer:SendAbilityAlert(activeCast.abilityName, missType, targetName, raidIcon)
-        activeCast = nil
-    end
-end
-
--- 4. UI Error Message Fallback (Immunity, range, facing)
+-- 3. UI Error Message Fallback (Immunity, range, facing)
 local function OnUIErrorMessage(errorType, message)
-    local errText = type(message) == "string" and message or (type(errorType) == "string" and errorType or "")
+    local errText = TAF.Utils.SafeString(message, "")
+    if errText == "" then
+        errText = TAF.Utils.SafeString(errorType, "")
+    end
     if not activeCast or errText == "" then return end
     if (GetTime() - activeCast.timestamp) > CAST_EXPIRY_SECONDS then
         activeCast = nil
@@ -121,21 +175,22 @@ local function OnUIErrorMessage(errorType, message)
 
     if missType then
         local targetName = activeCast.target
-        local raidIcon = TAF.Utils.GetRaidTargetToken("target")
-        TAF.Announcer:SendAbilityAlert(activeCast.abilityName, missType, targetName, raidIcon)
+        local raidIcon = activeCast.raidIcon
+        if not raidIcon or raidIcon == "" then
+            raidIcon = TAF.Utils.GetRaidTargetToken("target")
+        end
+        TAF.Announcer:SendAbilityAlert(activeCast.abilityName, missType, targetName, raidIcon, activeCast.spellID)
         activeCast = nil
     end
 end
 
-local function OnEvent(self, event, arg1, arg2, arg3, arg4)
+local function OnEvent(self, event, arg1, arg2, ...)
     if not TAF.isEnabled then return end
 
     if event == "UNIT_SPELLCAST_SENT" then
-        OnSpellcastSent(arg1, arg2, arg3, arg4)
-    elseif event == "COMBAT_TEXT_UPDATE" then
-        OnCombatTextUpdate(arg1)
-    elseif event == "COMBAT_LOG_MESSAGE" then
-        OnCombatLogMessage(arg1)
+        OnSpellcastSent(arg1, arg2, ...)
+    elseif event == "UNIT_COMBAT" then
+        OnUnitCombat(arg1, arg2, ...)
     elseif event == "UI_ERROR_MESSAGE" then
         OnUIErrorMessage(arg1, arg2)
     end
@@ -147,9 +202,8 @@ end
 
 function AbilityAlerts:OnEnable()
     frame:RegisterEvent("UNIT_SPELLCAST_SENT")
-    frame:RegisterEvent("COMBAT_TEXT_UPDATE")
+    frame:RegisterEvent("UNIT_COMBAT")
     frame:RegisterEvent("UI_ERROR_MESSAGE")
-    pcall(frame.RegisterEvent, frame, "COMBAT_LOG_MESSAGE")
     frame:SetScript("OnEvent", OnEvent)
 end
 
@@ -161,10 +215,22 @@ end
 
 -- Test Harness: Simulate an ability failure
 function AbilityAlerts:SimulateMiss(abilityName, missType, targetName)
-    local testAbility = abilityName or "Taunt"
-    local testMiss = missType or "RESISTED"
-    local testTarget = targetName or UnitName("target") or "Target Dummy"
+    local testAbility = TAF.Utils.SafeString(abilityName, "Taunt")
+    local testMiss = TAF.Utils.SafeString(missType, "RESISTED")
+    local rawTarget = targetName or (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
+    local testTarget = TAF.Utils.SafeString(rawTarget, "Target Dummy")
     local raidIcon = TAF.Utils.GetRaidTargetToken("target")
+    if not raidIcon or raidIcon == "" then
+        raidIcon = "{rt8}"
+    end
 
-    TAF.Announcer:SendAbilityAlert(testAbility, testMiss, testTarget, raidIcon)
+    local testSpellID = nil
+    if TAF.SpellData and TAF.SpellData.Abilities and TAF.SpellData.Abilities[TAF.playerClass] then
+        local entry = TAF.SpellData.Abilities[TAF.playerClass][testAbility]
+        if entry and entry.spellIDs and entry.spellIDs[1] then
+            testSpellID = entry.spellIDs[1]
+        end
+    end
+
+    TAF.Announcer:SendAbilityAlert(testAbility, testMiss, testTarget, raidIcon, testSpellID)
 end

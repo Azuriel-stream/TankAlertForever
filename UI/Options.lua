@@ -113,6 +113,9 @@ local function CreateOptionsPanel()
     -- Close Button
     local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     closeBtn:SetPoint("TOPRIGHT", -8, -8)
+    closeBtn:SetScript("OnClick", function(self)
+        f:Hide()
+    end)
 
     local widgets = {}
     f.widgets = widgets
@@ -307,6 +310,7 @@ local function CreateOptionsPanel()
 
     f:Hide()
     optionsPanel = f
+    tinsert(UISpecialFrames, "TankAlertForeverOptionsPanel")
     return f
 end
 

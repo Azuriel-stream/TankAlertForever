@@ -1,5 +1,8 @@
 local ADDON_NAME, TAF = ...
 
+_G["TAF"] = TAF
+_G["TankAlertForever"] = TAF
+
 TAF.name = ADDON_NAME
 TAF.version = "2.0.0"
 TAF.modules = {}
@@ -31,7 +34,26 @@ function TAF:Print(msg, ...)
     if select("#", ...) > 0 then
         msg = string.format(msg, ...)
     end
-    print("|cff00FF7F[TankAlert]|r " .. tostring(msg))
+    msg = tostring(msg)
+    -- Render chat raid icon tokens ({rt1} to {rt8}) as inline visual textures in local chat output
+    if TAF.Utils and TAF.Utils.ReplaceRaidTokens then
+        msg = TAF.Utils.ReplaceRaidTokens(msg)
+    else
+        msg = string.gsub(msg, "{rt([1-8])}", "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_%1:0|t")
+    end
+
+    if string.find(msg, "^>> ") and string.find(msg, "<<") then
+        for _, failType in ipairs({"DODGED", "PARRIED", "MISSED", "RESISTED", "BLOCKED", "IMMUNE", "DEFLECTED", "REFLECTED", "EVADED"}) do
+            if string.find(msg, failType) then
+                msg = string.gsub(msg, failType, "|cffFF2222" .. failType .. "|r")
+            end
+        end
+        msg = string.gsub(msg, "^>> ", "|cffFFD700>> |r")
+        msg = string.gsub(msg, " <<", " |cffFFD700<<|r")
+        msg = string.gsub(msg, "%(Watch threat%)", "|cffFF9900(Watch threat)|r")
+    end
+
+    print("|cff00FF7F[TankAlert]|r " .. msg)
 end
 
 -- Module Registration
@@ -135,7 +157,8 @@ local function OnEvent(self, event, arg1, ...)
             TAF.playerClass = class
         end
         TAF.playerGUID = UnitGUID("player")
-        TAF.playerName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
+        local rawPlayer = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
+        TAF.playerName = (TAF.Utils and TAF.Utils.SafeString and TAF.Utils.SafeString(rawPlayer, "Player")) or rawPlayer or "Player"
 
         -- Enable modules if global master switch is on
         if TAF.db and TAF.db.global and TAF.db.global.enabled then

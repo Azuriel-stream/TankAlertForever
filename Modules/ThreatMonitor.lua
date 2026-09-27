@@ -12,17 +12,23 @@ local function CheckThreat()
     if not TAF:GetGlobalOption("announceThreatWhisper") then return end
 
     -- Threat requires a valid hostile or attackable target
-    if not UnitExists("target") or UnitIsDead("target") or UnitIsFriend("player", "target") then
-        return
-    end
+    local okExists, exists = pcall(UnitExists, "target")
+    if not okExists or not exists then return end
 
-    local mobName = UnitName("target") or "the mob"
+    local okDead, isDead = pcall(UnitIsDead, "target")
+    if okDead and isDead then return end
+
+    local okFriend, isFriend = pcall(UnitIsFriend, "player", "target")
+    if okFriend and isFriend then return end
+
+    local rawMob = UnitName("target")
+    local mobName = TAF.Utils.SafeString(rawMob, "the target")
     local onlyTank = TAF:GetGlobalOption("onlyTankWhispers")
 
     -- 1. Main Tank Validation: Check if player is the active tank
     if onlyTank then
-        local isTanking, status = UnitDetailedThreatSituation("player", "target")
-        if not isTanking then
+        local okThreat, isTanking = pcall(UnitDetailedThreatSituation, "player", "target")
+        if not okThreat or TAF.Utils.IsSecret(isTanking) or not isTanking then
             return
         end
     end
@@ -35,19 +41,21 @@ local function CheckThreat()
     local unitPrefix = (groupType == "RAID") and "raid" or "party"
     local count = (groupType == "RAID") and GetNumGroupMembers() or GetNumSubgroupMembers()
 
-    if count == 0 then return end
+    if not count or count == 0 then return end
 
     for i = 1, count do
         local unit = unitPrefix .. i
-        if UnitExists(unit) and not UnitIsUnit(unit, "player") and not UnitIsDeadOrGhost(unit) then
-            local isMemberTanking, _, threatPct, rawThreatPct = UnitDetailedThreatSituation(unit, "target")
+        local okUnit, unitExists = pcall(UnitExists, unit)
+        if okUnit and unitExists and not UnitIsUnit(unit, "player") and not UnitIsDeadOrGhost(unit) then
+            local okSit, isMemberTanking, _, threatPct, rawThreatPct = pcall(UnitDetailedThreatSituation, unit, "target")
             
-            -- Skip if the member is actively tanking (e.g. co-tank taunt)
-            if not isMemberTanking then
+            -- Skip if check failed or if the member is actively tanking (e.g. co-tank taunt)
+            if okSit and (TAF.Utils.IsSecret(isMemberTanking) or not isMemberTanking) then
                 local pct = threatPct or rawThreatPct
-                if pct and pct >= threshold then
-                    local memberName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName(unit)) or UnitName(unit)
-                    if memberName then
+                if pct and not TAF.Utils.IsSecret(pct) and type(pct) == "number" and pct >= threshold then
+                    local rawMemberName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName(unit)) or UnitName(unit)
+                    local memberName = TAF.Utils.SafeString(rawMemberName, nil)
+                    if memberName and memberName ~= "" then
                         local lastWhisper = whisperThrottle[memberName] or 0
                         if now - lastWhisper >= throttleSeconds then
                             whisperThrottle[memberName] = now
@@ -109,9 +117,11 @@ end
 
 -- Test Harness
 function ThreatMonitor:SimulateWhisper(targetPlayerName, threatPercent, mobName)
-    local recipient = targetPlayerName or (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
-    local pct = threatPercent or 95
-    local mob = mobName or UnitName("target") or "Training Dummy"
+    local rawRecipient = targetPlayerName or (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
+    local recipient = TAF.Utils.SafeString(rawRecipient, "Player")
+    local pct = (type(threatPercent) == "number" and not TAF.Utils.IsSecret(threatPercent)) and threatPercent or 95
+    local rawMob = mobName or UnitName("target")
+    local mob = TAF.Utils.SafeString(rawMob, "Training Dummy")
     TAF:Print("Sending test whisper to |cffFFFFFF%s|r...", recipient)
     TAF.Announcer:SendWhisper(recipient, pct, mob)
 end

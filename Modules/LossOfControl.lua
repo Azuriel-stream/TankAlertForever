@@ -73,7 +73,8 @@ local function TriggerAlert(alertType)
         return
     end
 
-    local targetName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
+    local rawTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
+    local targetName = TAF.Utils.SafeString(rawTarget, nil)
     local raidIcon = TAF.Utils.GetRaidTargetToken("target")
 
     if alertType == "DISARMED" then
@@ -86,11 +87,20 @@ end
 -- 1. Modern C_LossOfControl API Handler (Official replacement for CLEU LOC tracking)
 local function OnLossOfControlAdded(eventIndex)
     if not C_LossOfControl or not C_LossOfControl.GetActiveLossOfControlData then return end
-    local data = C_LossOfControl.GetActiveLossOfControlData(eventIndex)
-    if not data then return end
+    local ok, data = pcall(C_LossOfControl.GetActiveLossOfControlData, eventIndex)
+    if not ok or not data or TAF.Utils.IsSecret(data) then return end
 
-    local locType = data.locType or ""
-    local spellName = data.name or (data.spellID and (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(data.spellID) or GetSpellInfo(data.spellID))) or ""
+    local locType = TAF.Utils.SafeString(data.locType, "")
+    local spellName = TAF.Utils.SafeString(data.name, "")
+    if spellName == "" and data.spellID and not TAF.Utils.IsSecret(data.spellID) then
+        if C_Spell and C_Spell.GetSpellName then
+            local okName, name = pcall(C_Spell.GetSpellName, data.spellID)
+            if okName then spellName = TAF.Utils.SafeString(name, "") end
+        elseif GetSpellInfo then
+            local okInfo, name = pcall(GetSpellInfo, data.spellID)
+            if okInfo then spellName = TAF.Utils.SafeString(name, "") end
+        end
+    end
     local alertType = nil
 
     if locType == "STUN" or locType == "STUN_MECHANIC" then
@@ -122,7 +132,8 @@ end
 
 local function OnLossOfControlUpdate()
     if C_LossOfControl and C_LossOfControl.GetActiveLossOfControlDataCount then
-        if C_LossOfControl.GetActiveLossOfControlDataCount() == 0 then
+        local ok, count = pcall(C_LossOfControl.GetActiveLossOfControlDataCount)
+        if ok and count and not TAF.Utils.IsSecret(count) and count == 0 then
             activeStates.STUNNED = false
             activeStates.FEARED = false
             activeStates.INCAPACITATED = false
@@ -133,9 +144,10 @@ end
 
 -- 2. UI Error Message Fallback (Catching errors during cast/attack attempts while CC'd or Disarmed)
 local function OnUIErrorMessage(message)
-    if not message or type(message) ~= "string" then return end
+    local safeMsg = TAF.Utils.SafeString(message, "")
+    if safeMsg == "" then return end
 
-    local lower = string.lower(message)
+    local lower = string.lower(safeMsg)
 
     if string.find(lower, "while stunned") or string.find(lower, "you are stunned") then
         if not activeStates.STUNNED then
