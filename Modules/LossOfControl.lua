@@ -83,7 +83,7 @@ local function TriggerAlert(alertType)
     end
 end
 
--- 1. Combat Log Aura Detection (100% un-tainted, fires immediately on aura application)
+-- 1. Combat Log Aura Detection (100% un-tainted, completely avoids secure frame interference)
 local function OnCombatLogEvent()
     if not TAF.isEnabled then return end
 
@@ -134,48 +134,7 @@ local function OnCombatLogEvent()
     end
 end
 
--- 2. Aura Scanner (UNIT_AURA for player)
-local function ScanAuras()
-    if TAF.playerClass == "DRUID" and not TAF.Utils.IsDruidBearForm() then
-        return
-    end
-
-    local index = 1
-    while true do
-        local name
-        if C_UnitAuras and C_UnitAuras.GetDebuffDataByIndex then
-            local auraData = C_UnitAuras.GetDebuffDataByIndex("player", index)
-            if not auraData then break end
-            name = auraData.name
-        elseif UnitDebuff then
-            local debuffName = UnitDebuff("player", index)
-            if not debuffName then break end
-            name = debuffName
-        else
-            break
-        end
-
-        if name then
-            local lowerName = string.lower(name)
-            local alertType = CC_SPELLS[lowerName]
-
-            if not alertType then
-                if string.find(lowerName, "disarm") or string.find(lowerName, "riposte") then
-                    alertType = "DISARMED"
-                end
-            end
-
-            if alertType and not activeStates[alertType] then
-                activeStates[alertType] = true
-                TriggerAlert(alertType)
-            end
-        end
-
-        index = index + 1
-    end
-end
-
--- 3. UI Error Message Fallback (Catching errors during cast/attack attempts while CC'd or Disarmed)
+-- 2. UI Error Message Fallback (Catching errors during cast/attack attempts while CC'd or Disarmed)
 local function OnUIErrorMessage(message)
     if not message or type(message) ~= "string" then return end
 
@@ -200,8 +159,6 @@ local function OnEvent(self, event, arg1, ...)
 
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
         OnCombatLogEvent()
-    elseif event == "UNIT_AURA" and arg1 == "player" then
-        ScanAuras()
     elseif event == "UI_ERROR_MESSAGE" then
         local message = type(arg1) == "string" and arg1 or ...
         OnUIErrorMessage(message)
@@ -214,7 +171,6 @@ end
 
 function LossOfControl:OnEnable()
     frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    frame:RegisterUnitEvent("UNIT_AURA", "player")
     frame:RegisterEvent("UI_ERROR_MESSAGE")
     frame:SetScript("OnEvent", OnEvent)
 end

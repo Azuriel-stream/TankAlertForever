@@ -1,4 +1,4 @@
-## Interface: 110000, 16001
+## Interface: 16001
 ## Title: |cff00FF7FTankAlert|r Forever
 ## Notes: Modern combat failure alerts, loss-of-control notifications, and intelligent threat whispers for tanks.
 ## Author: Azuriel
