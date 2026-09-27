@@ -1,0 +1,27 @@
+## Interface: 110000, 16001
+## Title: |cff00FF7FTankAlert|r Forever
+## Notes: Modern combat failure alerts, loss-of-control notifications, and intelligent threat whispers for tanks.
+## Author: Azuriel
+## Version: 2.0.0
+## SavedVariables: TankAlertForeverDB
+
+# Locales
+Locales\Localization.lua
+Locales\enUS.lua
+
+# Core Framework
+Core\Init.lua
+Core\Config.lua
+Core\Utils.lua
+
+# Static Data
+Data\SpellData.lua
+
+# Functional Modules
+Modules\Announcer.lua
+Modules\AbilityAlerts.lua
+Modules\LossOfControl.lua
+Modules\ThreatMonitor.lua
+
+# Configuration Interface
+UI\Options.lua
