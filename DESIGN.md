@@ -82,22 +82,22 @@ TankAlertForever/
 ---
 
 ### 4.2. Ability Failure Tracking (`Modules/AbilityAlerts.lua` & `Data/SpellData.lua`)
-- **Event**: `COMBAT_LOG_EVENT_UNFILTERED`.
-- **Retrieval**: `CombatLogGetCurrentEventInfo()`.
-- **Filtered Subevents**:
-  - `SPELL_MISSED` (covers Miss, Dodge, Parry, Resist, Immune, Block, Deflect, Reflect).
-  - `SWING_MISSED` (for melee auto/white swing abilities if configured).
+- **Modern Security Architecture**:
+  - In modern client builds (1.60.1 / 12.0+), `COMBAT_LOG_EVENT_UNFILTERED` is restricted from third-party addons (`ADDON_ACTION_FORBIDDEN`).
+  - TankAlertForever uses the modern secure event pipeline:
+    1. `UNIT_SPELLCAST_SENT`: Captures player cast intent, target, and spell ID.
+    2. `COMBAT_TEXT_UPDATE`: Captures combat avoidance resolutions (`MISS`, `DODGE`, `PARRY`, `BLOCK`, `RESIST`, `IMMUNE`, `DEFLECT`, `REFLECT`).
+    3. `UI_ERROR_MESSAGE`: Captures out-of-range, facing, and immunity errors.
+    4. `COMBAT_LOG_MESSAGE`: Fallback for text combat log messages where supported.
 - **Evaluation Pipeline**:
   ```mermaid
   flowchart TD
-      A[COMBAT_LOG_EVENT_UNFILTERED] --> B{sourceGUID == playerGUID?}
-      B -- No --> C[Ignore Event]
-      B -- Yes --> D{subevent == SPELL_MISSED?}
-      D -- No --> C
-      D -- Yes --> E[Extract spellId, spellName, missType, destGUID, destName]
-      E --> F{Is spell tracked for player's class?}
-      F -- No --> C
-      F -- Yes --> G[Format Alert with Target & Raid Icon]
+      A[UNIT_SPELLCAST_SENT] --> B{unit == player?}
+      B -- Yes --> C{Is spell tracked for player's class?}
+      C -- Yes --> D[Record Active Cast & Target Context]
+      D --> E[Wait for Combat Resolution]
+      E --> F{COMBAT_TEXT_UPDATE / UI_ERROR_MESSAGE}
+      F -- Avoidance Detected --> G[Format Alert with Target & Raid Icon]
       G --> H[Dispatch to TAF.Announcer]
   ```
 - **Tracked Classes & Abilities** (extensible via `Data/SpellData.lua`):
@@ -111,15 +111,15 @@ TankAlertForever/
 
 ### 4.3. Loss of Control & Disarm Monitoring (`Modules/LossOfControl.lua`)
 - **Modern Loss of Control Engine**:
-  - Registers `LOSS_OF_CONTROL_ADDED` / `LOSS_OF_CONTROL_UPDATE` when `C_LossOfControlModel` is available.
-  - Fallback/Complementary: `UNIT_AURA` monitoring on `unit == "player"`.
+  - Registers `LOSS_OF_CONTROL_ADDED` / `LOSS_OF_CONTROL_UPDATE` via the modern `C_LossOfControl` API (`GetActiveLossOfControlData`).
+  - Fallback/Complementary: `UI_ERROR_MESSAGE` monitoring for disarms and action locks.
 - **Aura Mechanics Tracked**:
   - `STUN`: Kidney Shot, Hammer of Justice, Bash, etc.
   - `FEAR`: Psychic Scream, Howl of Terror, Intimidating Shout.
   - `INCAPACITATE` / `CONFUSED`: Polymorph, Sap, Gouge, Scatter Shot.
-  - `DISARM`: Weapon disarm effects, verified with inventory slot 16 (`GetInventoryItemLink("player", 16)`).
+  - `DISARM`: Weapon disarm effects, verified with inventory slot 16 (`TAF.Utils.HasMeleeWeaponEquipped()`).
 - **Stance / Form Guards**:
-  - Druids: Only announce CC if in Bear Form / Dire Bear Form (`GetShapeshiftFormID()` or form index validation).
+  - Druids: Only announce CC if in Bear Form / Dire Bear Form (`TAF.Utils.IsDruidBearForm()`).
 - **Anti-Spam Throttles**:
   - Independent cooldown for CC alerts (default 8s).
   - Independent cooldown for Disarm alerts (default 8s).

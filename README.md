@@ -8,21 +8,23 @@ It assists tanks in communicating critical combat state changes and ability fail
 
 ## Features
 
-### 1. Ability Failure Alerts (CLEU Powered)
-Listens directly to the combat log (`COMBAT_LOG_EVENT_UNFILTERED`) to reliably catch resisted, missed, dodged, parried, or immune tank abilities without relying on fragile chat-message string matching:
+### 1. Ability Failure Alerts (Secure Modern Pipeline)
+Monitors tank ability failures without relying on restricted or forbidden combat log events:
+* Tracks cast intent via `UNIT_SPELLCAST_SENT` and correlates with real-time combat resolution via `COMBAT_TEXT_UPDATE` (Miss, Dodge, Parry, Resist, Block, Immune, Deflect, Reflect) and `UI_ERROR_MESSAGE`.
 * **Warrior:** Taunt, Sunder Armor, Shield Slam, Revenge, Mocking Blow
 * **Druid:** Growl
 * **Paladin:** Hand of Reckoning, Holy Strike, Righteous Defense
 * **Shaman:** Earthshaker Slam, Earth Shock, Frost Shock, Lightning Strike, Stormstrike
 
 ### 2. Loss of Control & Disarm Alerts
-Detects loss of control effects (Stuns, Fears, Incapacitate, Confused) and disarm states using modern aura and Loss-of-Control APIs, alerting party or raid members so they know when to pull back or pop defensives.
+Detects loss of control effects (Stuns, Fears, Incapacitate, Confused) and disarm states using modern `C_LossOfControl` APIs (`LOSS_OF_CONTROL_ADDED` / `LOSS_OF_CONTROL_UPDATE`) and `UI_ERROR_MESSAGE`:
 * Druid stance awareness ensures alerts only fire when in Bear Form / Dire Bear Form.
 * Built-in alert throttling prevents notification spam.
 
 ### 3. Native Threat Whispers
 Monitors threat across party/raid members using WoW's native threat API (`UnitDetailedThreatSituation`):
 * Whispers DPS/Healers when they exceed a configurable threat threshold (default: 90%).
+* Full support for first and last names in whispers.
 * Configurable "Only if I am Tank" filter ensures whispers are only sent by the active tank.
 * Per-player whisper throttling prevents whisper spam.
 
@@ -38,7 +40,7 @@ Monitors threat across party/raid members using WoW's native threat API (`UnitDe
 
 * `Core/`: Namespace initialization, configuration defaults, and shared utilities.
 * `Data/`: Spell definitions, spell IDs, and failure mappings per class.
-* `Modules/`: Discrete feature modules (Combat Log Ability Alerts, Loss of Control, Threat Monitor, Announcer).
+* `Modules/`: Discrete feature modules (Ability Alerts, Loss of Control, Threat Monitor, Announcer).
 * `UI/`: Modern options interface and slash command dispatcher.
 * `Locales/`: Localization tables.
 * `DESIGN.md`: Full architecture, API decisions, and technical specifications.
@@ -54,3 +56,8 @@ Monitors threat across party/raid members using WoW's native threat API (`UnitDe
 * `/ta toggle disarm` — Toggle Disarm alerts
 * `/ta toggle whisper` — Toggle Threat whispers
 * `/ta status` — Show current configuration status
+* `/ta test miss [ability]` — Simulate an ability miss / resist
+* `/ta test cc` — Simulate a loss-of-control alert
+* `/ta test disarm` — Simulate a disarm alert
+* `/ta test whisper [target]` — Simulate a high-threat whisper
+* `/ta debug` — Display security and event diagnostics
