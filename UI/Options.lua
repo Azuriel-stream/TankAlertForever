@@ -381,6 +381,14 @@ local function HandleSlashCommands(msg)
         else
             TAF:Print("Available test options: |cffFFFFFF/ta test miss|r, |cffFFFFFF/ta test cc|r, |cffFFFFFF/ta test disarm|r, |cffFFFFFF/ta test whisper [target]|r")
         end
+    elseif cmd == "debug" then
+        local func = _G["TAF_BLOCKED_FUNC"] or (TAF.db and TAF.db._lastBlockedFunction) or "None recorded"
+        local evt = _G["TAF_BLOCKED_EVENT"] or (TAF.db and TAF.db._lastBlockedEvent) or "None recorded"
+        local stack = _G["TAF_BLOCKED_STACK"] or (TAF.db and TAF.db._lastBlockedStack) or "No stack available"
+        TAF:Print("|cff00FF7F--- TAF Security Debug Info ---|r")
+        TAF:Print("Last Event: |cffFFFFFF%s|r", evt)
+        TAF:Print("Blocked Function: |cffFF4444%s|r", func)
+        TAF:Print("Stack Trace:\n%s", stack)
     else
         TAF:Print("Unknown command. Type |cffFFFFFF/ta|r to open settings.")
     end

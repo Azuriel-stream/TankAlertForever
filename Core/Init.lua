@@ -9,17 +9,31 @@ TAF.isEnabled = false
 local eventFrame = CreateFrame("Frame")
 TAF.eventFrame = eventFrame
 
--- Helper Print
+-- Security Action Interceptor: Captures exact blocked functions and callstack
+local securityFrame = CreateFrame("Frame")
+securityFrame:RegisterEvent("ADDON_ACTION_BLOCKED")
+securityFrame:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+securityFrame:SetScript("OnEvent", function(self, event, addonName, functionName)
+    local stack = (debugstack and debugstack(2, 8, 8)) or "No stack available"
+    local alert = string.format("[TAF Security Alert] %s on '%s' -> function '%s'", tostring(event), tostring(addonName), tostring(functionName))
+    print("|cffFF0000" .. alert .. "|r")
+    _G["TAF_BLOCKED_FUNC"] = functionName
+    _G["TAF_BLOCKED_STACK"] = stack
+    _G["TAF_BLOCKED_EVENT"] = event
+    if TankAlertForeverDB then
+        TankAlertForeverDB._lastBlockedEvent = event
+        TankAlertForeverDB._lastBlockedAddon = addonName
+        TankAlertForeverDB._lastBlockedFunction = functionName
+        TankAlertForeverDB._lastBlockedStack = stack
+    end
+end)
+
+-- Safe Helper Print (avoids touching DEFAULT_CHAT_FRAME to eliminate frame taint)
 function TAF:Print(msg, ...)
     if select("#", ...) > 0 then
         msg = string.format(msg, ...)
     end
-    local prefix = "|cff00FF7F[TankAlert]|r "
-    if DEFAULT_CHAT_FRAME then
-        DEFAULT_CHAT_FRAME:AddMessage(prefix .. tostring(msg))
-    else
-        print(prefix .. tostring(msg))
-    end
+    print("|cff00FF7F[TankAlert]|r " .. tostring(msg))
 end
 
 -- Module Registration
@@ -96,6 +110,14 @@ local function OnEvent(self, event, arg1, ...)
             if type(TAF.InitConfig) == "function" then
                 TAF:InitConfig()
             end
+
+            -- Enable script errors and taint logging automatically
+            pcall(function()
+                if SetCVar then
+                    SetCVar("scriptErrors", "1")
+                    SetCVar("taintLog", "1")
+                end
+            end)
 
             -- Initialize Modules
             for name, mod in pairs(TAF.modules) do
