@@ -5,10 +5,10 @@ if not L then return end
 
 -- General & Addon Info
 L["ADDON_TITLE"] = "TankAlert Forever"
-L["ADDON_LOADED"] = "|cff00FF7F[TankAlert]|r v%s loaded. Type |cffFFFFFF/ta|r or |cffFFFFFF/tankalert|r for options."
-L["ADDON_ENABLED"] = "|cff00FF7F[TankAlert]|r Enabled."
-L["ADDON_DISABLED"] = "|cffFF4444[TankAlert]|r Disabled."
-L["CLASS_NOT_SUPPORTED"] = "|cffFF4444[TankAlert]|r Class %s is not supported."
+L["ADDON_LOADED"] = "v%s loaded. Type |cffFFFFFF/ta|r or |cffFFFFFF/tankalert|r for options."
+L["ADDON_ENABLED"] = "|cff00FF00Enabled.|r"
+L["ADDON_DISABLED"] = "|cffFF4444Disabled.|r"
+L["CLASS_NOT_SUPPORTED"] = "|cffFF4444Class %s is not supported.|r"
 
 -- Alert Formats (Combat & Chat)
 L["ALERT_ABILITY_FAIL_TARGET"] = ">> %s %s on %s! << (Watch threat)"

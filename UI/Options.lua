@@ -4,7 +4,6 @@ local Options = TAF:RegisterModule("Options")
 local L = TAF.L
 
 local optionsPanel = nil
-local categoryID = nil
 local widgetCounter = 0
 
 local function GetUniqueWidgetName(prefix)
@@ -13,18 +12,15 @@ local function GetUniqueWidgetName(prefix)
 end
 
 -- UI Helper: Create Checkbox
+-- UICheckButtonTemplate replaces the deprecated InterfaceOptionsCheckButtonTemplate (DeprecatedTemplates.xml).
 local function CreateCheckbox(parent, text, tooltip, onClick)
     local name = GetUniqueWidgetName("CheckButton")
-    local template = "InterfaceOptionsCheckButtonTemplate"
-    local cb = CreateFrame("CheckButton", name, parent, template)
+    local cb = CreateFrame("CheckButton", name, parent, "UICheckButtonTemplate")
+    cb:SetSize(26, 26)
 
-    local label = _G[name .. "Text"] or cb.Text
-    if not label then
-        label = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        label:SetPoint("LEFT", cb, "RIGHT", 4, 1)
-    end
+    local label = cb.Text
+    label:SetFontObject("GameFontHighlight")
     label:SetText(text)
-    cb.Text = label
 
     cb:SetScript("OnClick", function(self)
         local isChecked = self:GetChecked()
@@ -45,49 +41,86 @@ local function CreateCheckbox(parent, text, tooltip, onClick)
 end
 
 -- UI Helper: Create Slider
+-- MinimalSliderWithSteppersTemplate replaces the deprecated OptionsSliderTemplate. It shows < > stepper
+-- buttons and renders the current value in its Right label via a formatter.
 local function CreateSlider(parent, text, minVal, maxVal, step, onValChanged)
     local name = GetUniqueWidgetName("Slider")
-    local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
-    slider:SetMinMaxValues(minVal, maxVal)
-    slider:SetValueStep(step or 1)
-    slider:SetObeyStepOnDrag(true)
-    slider:SetWidth(200)
-    slider:SetHeight(16)
+    local slider = CreateFrame("Frame", name, parent, "MinimalSliderWithSteppersTemplate")
+    slider:SetSize(220, 24)
 
-    local title = _G[name .. "Text"] or slider:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    title:ClearAllPoints()
-    title:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 4)
+    local title = slider:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    title:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 19, 2)
     title:SetText(text)
 
-    local lowText = _G[name .. "Low"]
-    if lowText then lowText:SetText(tostring(minVal)) end
+    local Label = MinimalSliderWithSteppersMixin.Label
+    local formatters = {
+        [Label.Right] = CreateMinimalSliderFormatter(Label.Right, function(value)
+            return tostring(math.floor(value + 0.5))
+        end),
+    }
+    step = step or 1
+    slider:Init(minVal, minVal, maxVal, (maxVal - minVal) / step, formatters)
 
-    local highText = _G[name .. "High"]
-    if highText then highText:SetText(tostring(maxVal)) end
-
-    local valText = slider:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    valText:SetPoint("LEFT", slider, "RIGHT", 10, 0)
-
-    slider:SetScript("OnValueChanged", function(self, value)
-        local rounded = math.floor(value + 0.5)
-        valText:SetText(tostring(rounded))
+    slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, value)
         if onValChanged then
-            onValChanged(rounded)
+            onValChanged(math.floor(value + 0.5))
         end
-    end)
+    end, slider)
 
-    slider.valText = valText
     return slider
 end
 
+-- UI Helper: gold section header with a horizontal divider underneath
+local function CreateSectionHeader(parent, text, y)
+    local header = parent:CreateFontString(nil, "ARTWORK", "GameFontNormalMed2")
+    header:SetPoint("TOPLEFT", 16, y)
+    header:SetText(text)
+
+    local divider = parent:CreateTexture(nil, "ARTWORK")
+    divider:SetAtlas("Options_HorizontalDivider", true)
+    divider:SetPoint("TOPLEFT", header, "BOTTOMLEFT", -4, -2)
+    divider:SetPoint("RIGHT", parent, "RIGHT", -12, 0)
+    return header
+end
+
+-- UI Helper: modern menu dropdown (radio list) for the output channel
+local CHANNELS = {
+    { key = "auto", label = "CHAN_AUTO" },
+    { key = "say", label = "CHAN_SAY" },
+    { key = "party", label = "CHAN_PARTY" },
+    { key = "raid", label = "CHAN_RAID" },
+    { key = "raid_warning", label = "CHAN_RAID_WARNING" },
+}
+
+local function CreateChannelDropdown(parent)
+    local dropdown = CreateFrame("DropdownButton", nil, parent, "WowStyle1DropdownTemplate")
+    dropdown:SetWidth(220)
+
+    local function IsSelected(key)
+        return TAF:GetGlobalOption("forceChannel") == key
+    end
+    local function SetSelected(key)
+        TAF:SetGlobalOption("forceChannel", key)
+    end
+
+    dropdown:SetupMenu(function(_, rootDescription)
+        for _, ch in ipairs(CHANNELS) do
+            rootDescription:CreateRadio(L[ch.label], IsSelected, SetSelected, ch.key)
+        end
+    end)
+    return dropdown
+end
+
 -- Build Configuration Frame
+-- ButtonFrameTemplate: standard Blizzard window (portrait, title bar, close button, Inset, bottom button bar).
 local function CreateOptionsPanel()
     if optionsPanel then return optionsPanel end
 
-    local backdropTemplate = BackdropTemplateMixin and "BackdropTemplate" or nil
-    local f = CreateFrame("Frame", "TankAlertForeverOptionsPanel", UIParent, backdropTemplate)
-    f:SetSize(520, 620)
+    local f = CreateFrame("Frame", "TankAlertForeverOptionsPanel", UIParent, "ButtonFrameTemplate")
+    f:SetSize(540, 560)
     f:SetPoint("CENTER")
+    f:SetFrameStrata("HIGH")
+    f:SetToplevel(true)
     f:EnableMouse(true)
     f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
@@ -95,190 +128,112 @@ local function CreateOptionsPanel()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
 
-    -- Backdrop styling
-    if f.SetBackdrop then
-        f:SetBackdrop({
-            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-            tile = true, tileSize = 32, edgeSize = 32,
-            insets = { left = 8, right = 8, top = 8, bottom = 8 }
-        })
-    end
-
-    -- Header Title
-    local title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 20, -18)
-    title:SetText(L["ADDON_TITLE"] .. " |cff888888v" .. TAF.version .. "|r")
-
-    -- Close Button
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", -8, -8)
-    closeBtn:SetScript("OnClick", function(self)
-        f:Hide()
-    end)
+    f:SetTitle(L["ADDON_TITLE"] .. " |cff888888v" .. TAF.version .. "|r")
+    f:SetPortraitToClassIcon(TAF.playerClass or "WARRIOR")
 
     local widgets = {}
     f.widgets = widgets
+    local content = f.Inset
 
-    -- 1. General Section
-    local secGeneral = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    secGeneral:SetPoint("TOPLEFT", 20, -55)
-    secGeneral:SetText("|cffFFD100" .. L["UI_SECTION_GENERAL"] .. "|r")
-
+    -- Attic (between title bar and Inset): master switch next to the portrait
     widgets.master = CreateCheckbox(f, L["OPT_ENABLE_ADDON"], L["OPT_ENABLE_ADDON_DESC"], function(checked)
         if checked then TAF:Enable() else TAF:Disable() end
     end)
-    widgets.master:SetPoint("TOPLEFT", 20, -80)
+    widgets.master:SetPoint("TOPLEFT", 64, -28)
 
-    widgets.cc = CreateCheckbox(f, L["OPT_ANNOUNCE_CC"], L["OPT_ANNOUNCE_CC_DESC"], function(checked)
+    -- 1. Alerts
+    CreateSectionHeader(content, L["UI_SECTION_GENERAL"], -12)
+
+    widgets.cc = CreateCheckbox(content, L["OPT_ANNOUNCE_CC"], L["OPT_ANNOUNCE_CC_DESC"], function(checked)
         TAF:SetGlobalOption("announceCC", checked)
     end)
-    widgets.cc:SetPoint("TOPLEFT", 20, -110)
+    widgets.cc:SetPoint("TOPLEFT", 14, -40)
 
-    widgets.disarm = CreateCheckbox(f, L["OPT_ANNOUNCE_DISARM"], L["OPT_ANNOUNCE_DISARM_DESC"], function(checked)
+    widgets.disarm = CreateCheckbox(content, L["OPT_ANNOUNCE_DISARM"], L["OPT_ANNOUNCE_DISARM_DESC"], function(checked)
         TAF:SetGlobalOption("announceDisarm", checked)
     end)
-    widgets.disarm:SetPoint("TOPLEFT", 260, -110)
+    widgets.disarm:SetPoint("TOPLEFT", 268, -40)
 
-    -- Alert Throttle Slider
-    widgets.alertThrottle = CreateSlider(f, L["OPT_ALERT_THROTTLE"], 3, 30, 1, function(val)
+    widgets.alertThrottle = CreateSlider(content, L["OPT_ALERT_THROTTLE"], 3, 30, 1, function(val)
         TAF:SetGlobalOption("alertThrottle", val)
     end)
-    widgets.alertThrottle:SetPoint("TOPLEFT", 20, -155)
+    widgets.alertThrottle:SetPoint("TOPLEFT", 0, -88)
 
-    -- 2. Threat Section
-    local secThreat = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    secThreat:SetPoint("TOPLEFT", 20, -195)
-    secThreat:SetText("|cffFFD100" .. L["UI_SECTION_THREAT"] .. "|r")
+    -- 2. Threat whispers
+    CreateSectionHeader(content, L["UI_SECTION_THREAT"], -126)
 
-    widgets.whisper = CreateCheckbox(f, L["OPT_ENABLE_WHISPERS"], L["OPT_ENABLE_WHISPERS_DESC"], function(checked)
+    widgets.whisper = CreateCheckbox(content, L["OPT_ENABLE_WHISPERS"], L["OPT_ENABLE_WHISPERS_DESC"], function(checked)
         TAF:SetGlobalOption("announceThreatWhisper", checked)
     end)
-    widgets.whisper:SetPoint("TOPLEFT", 20, -220)
+    widgets.whisper:SetPoint("TOPLEFT", 14, -154)
 
-    widgets.tankOnly = CreateCheckbox(f, L["OPT_ONLY_TANK_WHISPERS"], L["OPT_ONLY_TANK_WHISPERS_DESC"], function(checked)
+    widgets.tankOnly = CreateCheckbox(content, L["OPT_ONLY_TANK_WHISPERS"], L["OPT_ONLY_TANK_WHISPERS_DESC"], function(checked)
         TAF:SetGlobalOption("onlyTankWhispers", checked)
     end)
-    widgets.tankOnly:SetPoint("TOPLEFT", 260, -220)
+    widgets.tankOnly:SetPoint("TOPLEFT", 268, -154)
 
-    -- Threshold Slider
-    widgets.threshold = CreateSlider(f, L["OPT_WHISPER_THRESHOLD"], 50, 100, 1, function(val)
+    widgets.threshold = CreateSlider(content, L["OPT_WHISPER_THRESHOLD"], 50, 100, 1, function(val)
         TAF:SetGlobalOption("threatWhisperThreshold", val)
     end)
-    widgets.threshold:SetPoint("TOPLEFT", 20, -265)
+    widgets.threshold:SetPoint("TOPLEFT", 0, -202)
 
-    -- Whisper Throttle Slider
-    widgets.whisperThrottle = CreateSlider(f, L["OPT_WHISPER_THROTTLE"], 5, 30, 1, function(val)
+    widgets.whisperThrottle = CreateSlider(content, L["OPT_WHISPER_THROTTLE"], 5, 30, 1, function(val)
         TAF:SetGlobalOption("whisperThrottle", val)
     end)
-    widgets.whisperThrottle:SetPoint("TOPLEFT", 260, -265)
+    widgets.whisperThrottle:SetPoint("TOPLEFT", 254, -202)
 
-    -- 3. Channel Selection
-    local secChannel = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    secChannel:SetPoint("TOPLEFT", 20, -305)
-    secChannel:SetText("|cffFFD100" .. L["UI_SECTION_CHANNEL"] .. "|r")
+    -- 3. Output channel
+    CreateSectionHeader(content, L["UI_SECTION_CHANNEL"], -240)
+    widgets.channel = CreateChannelDropdown(content)
+    widgets.channel:SetPoint("TOPLEFT", 18, -270)
 
-    local channels = {
-        { key = "auto", label = L["CHAN_AUTO"] },
-        { key = "say", label = L["CHAN_SAY"] },
-        { key = "party", label = L["CHAN_PARTY"] },
-        { key = "raid", label = L["CHAN_RAID"] },
-        { key = "raid_warning", label = L["CHAN_RAID_WARNING"] }
-    }
-
-    widgets.channels = {}
-    local function UpdateChannelChecks(selectedKey)
-        TAF:SetGlobalOption("forceChannel", selectedKey)
-        for k, cb in pairs(widgets.channels) do
-            cb:SetChecked(k == selectedKey)
-        end
-    end
-
-    local chanX, chanY = 20, -330
-    for idx, ch in ipairs(channels) do
-        local cb = CreateCheckbox(f, ch.label, nil, function()
-            UpdateChannelChecks(ch.key)
-        end)
-        cb:SetPoint("TOPLEFT", chanX, chanY)
-        widgets.channels[ch.key] = cb
-
-        if idx % 2 == 1 then
-            chanX = 260
-        else
-            chanX = 20
-            chanY = chanY - 26
-        end
-    end
-
-    -- 4. Tracked Class Abilities
+    -- 4. Tracked class abilities
     local pClass = TAF.playerClass or "WARRIOR"
-    local secAbilities = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    secAbilities:SetPoint("TOPLEFT", 20, -420)
-    secAbilities:SetText("|cffFFD100" .. string.format(L["UI_SECTION_ABILITIES"], pClass) .. "|r")
+    CreateSectionHeader(content, string.format(L["UI_SECTION_ABILITIES"], pClass), -310)
 
     widgets.abilities = {}
     local abilityOrder = TAF.SpellData and TAF.SpellData.Order and TAF.SpellData.Order[pClass]
     if abilityOrder and #abilityOrder > 0 then
-        local abX, abY = 20, -445
         for i, abName in ipairs(abilityOrder) do
             local capturedName = abName
-            local cb = CreateCheckbox(f, capturedName, nil, function(checked)
+            local cb = CreateCheckbox(content, capturedName, nil, function(checked)
                 TAF:SetAbilityTracked(pClass, capturedName, checked)
             end)
-            cb:SetPoint("TOPLEFT", abX, abY)
+            local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+            cb:SetPoint("TOPLEFT", 14 + col * 254, -338 - row * 28)
             widgets.abilities[capturedName] = cb
-
-            if i % 2 == 1 then
-                abX = 260
-            else
-                abX = 20
-                abY = abY - 26
-            end
         end
     else
-        local noAbText = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        noAbText:SetPoint("TOPLEFT", 20, -445)
+        local noAbText = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        noAbText:SetPoint("TOPLEFT", 18, -342)
         noAbText:SetText(string.format(L["UI_NO_ABILITIES"], pClass))
     end
 
-    -- 5. Test Simulation Buttons (Bottom)
-    local testHeader = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    testHeader:SetPoint("BOTTOMLEFT", 20, 48)
-    testHeader:SetText("|cffFFD100Testing Simulator:|r")
-
-    local btnMiss = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    btnMiss:SetSize(85, 22)
-    btnMiss:SetPoint("BOTTOMLEFT", 20, 20)
-    btnMiss:SetText("Test Miss")
-    btnMiss:SetScript("OnClick", function()
-        local testSpell = (abilityOrder and abilityOrder[1]) or "Taunt"
-        TAF.AbilityAlerts:SimulateMiss(testSpell, "RESISTED")
-    end)
-
-    local btnCC = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    btnCC:SetSize(85, 22)
-    btnCC:SetPoint("LEFT", btnMiss, "RIGHT", 10, 0)
-    btnCC:SetText("Test CC")
-    btnCC:SetScript("OnClick", function()
-        TAF.LossOfControl:SimulateLOC("STUNNED")
-    end)
-
-    local btnDisarm = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    btnDisarm:SetSize(85, 22)
-    btnDisarm:SetPoint("LEFT", btnCC, "RIGHT", 10, 0)
-    btnDisarm:SetText("Test Disarm")
-    btnDisarm:SetScript("OnClick", function()
-        TAF.LossOfControl:SimulateDisarm()
-    end)
-
-    local btnWhisper = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    btnWhisper:SetSize(90, 22)
-    btnWhisper:SetPoint("LEFT", btnDisarm, "RIGHT", 10, 0)
-    btnWhisper:SetText("Test Whisper")
-    btnWhisper:SetScript("OnClick", function()
-        local fullName = TAF.Utils.GetSafeUnitName("player", "Player")
-        TAF.ThreatMonitor:SimulateWhisper(fullName, 95)
-    end)
+    -- 5. Test buttons in the bottom button bar
+    local tests = {
+        { text = "Test Miss", width = 90, run = function()
+            local testSpell = (abilityOrder and abilityOrder[1]) or "Taunt"
+            TAF.AbilityAlerts:SimulateMiss(testSpell, "RESISTED")
+        end },
+        { text = "Test CC", width = 80, run = function() TAF.LossOfControl:SimulateLOC("STUNNED") end },
+        { text = "Test Disarm", width = 90, run = function() TAF.LossOfControl:SimulateDisarm() end },
+        { text = "Test Whisper", width = 100, run = function()
+            TAF.ThreatMonitor:SimulateWhisper(TAF.Utils.GetSafeUnitName("player", "Player"), 95)
+        end },
+    }
+    local prev
+    for _, def in ipairs(tests) do
+        local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        btn:SetSize(def.width, 22)
+        if prev then
+            btn:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+        else
+            btn:SetPoint("BOTTOMLEFT", 6, 3)
+        end
+        btn:SetText(def.text)
+        btn:SetScript("OnClick", def.run)
+        prev = btn
+    end
 
     -- Synchronize UI with current settings on Show
     f:SetScript("OnShow", function()
@@ -290,19 +245,11 @@ local function CreateOptionsPanel()
         widgets.tankOnly:SetChecked(g.onlyTankWhispers)
 
         widgets.alertThrottle:SetValue(g.alertThrottle)
-        widgets.alertThrottle.valText:SetText(tostring(g.alertThrottle))
-
         widgets.threshold:SetValue(g.threatWhisperThreshold)
-        widgets.threshold.valText:SetText(tostring(g.threatWhisperThreshold))
-
         widgets.whisperThrottle:SetValue(g.whisperThrottle)
-        widgets.whisperThrottle.valText:SetText(tostring(g.whisperThrottle))
 
-        for k, cb in pairs(widgets.channels) do
-            cb:SetChecked(k == g.forceChannel)
-        end
+        widgets.channel:GenerateMenu()
 
-        local pClass = TAF.playerClass or "WARRIOR"
         for name, cb in pairs(widgets.abilities) do
             cb:SetChecked(TAF:IsAbilityTracked(pClass, name))
         end

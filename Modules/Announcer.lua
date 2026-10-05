@@ -265,12 +265,13 @@ local function TankAlertMessageFilter(self, event, msg, author, ...)
     return false, msg, author, ...
 end
 
-if ChatFrame_AddMessageEventFilter then
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_PARTY", TankAlertMessageFilter)
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_PARTY_LEADER", TankAlertMessageFilter)
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_RAID", TankAlertMessageFilter)
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_RAID_LEADER", TankAlertMessageFilter)
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_RAID_WARNING", TankAlertMessageFilter)
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_SAY", TankAlertMessageFilter)
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_YELL", TankAlertMessageFilter)
+-- ChatFrame_AddMessageEventFilter is only a Blizzard_DeprecatedChatInfo alias for ChatFrameUtil.AddMessageEventFilter.
+local AddMessageEventFilter = (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter) or ChatFrame_AddMessageEventFilter
+if AddMessageEventFilter then
+    for _, event in ipairs({
+        "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
+        "CHAT_MSG_RAID_WARNING", "CHAT_MSG_SAY", "CHAT_MSG_YELL",
+    }) do
+        AddMessageEventFilter(event, TankAlertMessageFilter)
+    end
 end
