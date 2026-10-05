@@ -65,11 +65,15 @@ L["OPT_WHISPER_THRESHOLD_DESC"] = "Group members exceeding this threat percentag
 L["OPT_WHISPER_THROTTLE"] = "Whisper Throttle (Seconds)"
 L["OPT_WHISPER_THROTTLE_DESC"] = "Minimum cooldown between threat whispers to the same player."
 
-L["CHAN_AUTO"] = "Auto (Smart Detect)"
+L["CHAN_AUTO_SHORT"] = "Auto"
+L["CHAN_AUTO_DESC"] = "Smart detect: Raid Warning when you lead or assist a raid, otherwise Raid, Party, or a local message when solo."
 L["CHAN_SAY"] = "Say"
 L["CHAN_PARTY"] = "Party"
 L["CHAN_RAID"] = "Raid"
 L["CHAN_RAID_WARNING"] = "Raid Warning"
+
+L["DEBUG_ON"] = "Debug mode ON: Lua errors are shown and taint is logged to Logs\\taint.log. |cffFFFFFF/ta debug off|r to stop."
+L["DEBUG_OFF"] = "Debug mode OFF: Lua error popups and taint logging disabled."
 
 -- Slash Commands
 L["CMD_STATUS_HEADER"] = "|cff00FF7F--- TankAlert Forever Status ---|r"

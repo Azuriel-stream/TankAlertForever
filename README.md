@@ -10,7 +10,7 @@ It assists tanks in communicating critical combat state changes and ability fail
 
 ### 1. Ability Failure Alerts (Secure Modern Pipeline)
 Monitors tank ability failures without relying on restricted or forbidden combat log events:
-* Tracks cast intent via `UNIT_SPELLCAST_SENT` and correlates with real-time combat resolution via `COMBAT_TEXT_UPDATE` (Miss, Dodge, Parry, Resist, Block, Immune, Deflect, Reflect) and `UI_ERROR_MESSAGE`.
+* Tracks cast intent via `UNIT_SPELLCAST_SENT` and correlates it with the result on your target via `UNIT_COMBAT` (Miss, Dodge, Parry, Resist, Block, Immune, Deflect, Reflect, Evade) and `UI_ERROR_MESSAGE`.
 * **Warrior:** Taunt, Sunder Armor, Shield Slam, Revenge, Mocking Blow
 * **Druid:** Growl
 * **Paladin:** Hand of Reckoning, Holy Strike, Righteous Defense
@@ -60,4 +60,5 @@ Monitors threat across party/raid members using WoW's native threat API (`UnitDe
 * `/ta test cc` — Simulate a loss-of-control alert
 * `/ta test disarm` — Simulate a disarm alert
 * `/ta test whisper [target]` — Simulate a high-threat whisper
-* `/ta debug` — Display security and event diagnostics
+* `/ta debug` — Show the last action WoW blocked for this addon (with stack)
+* `/ta debug on` / `/ta debug off` — Opt-in diagnostics: show Lua errors and log taint to `Logs\taint.log` (off by default; TankAlert no longer changes these settings by itself)

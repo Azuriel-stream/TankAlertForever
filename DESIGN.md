@@ -20,13 +20,13 @@ While the legacy addon served as an essential tool for tanks by alerting groups 
 | :--- | :--- | :--- |
 | **Code Structure** | Single monolithic file (`TankAlert.lua`, ~977 lines) | Modular architecture (`Core/`, `Modules/`, `Data/`, `UI/`, `Locales/`) |
 | **Namespace** | Globals and file-scope locals (`TankAlert_Settings`, `TankAlert_GUI`) | Strict private namespace injection (`local ADDON_NAME, TAF = ...`) |
-| **Combat Failure Detection** | Chat log regex matching (`CHAT_MSG_SPELL_SELF_DAMAGE`) | Combat Log Event System (`COMBAT_LOG_EVENT_UNFILTERED` with `CombatLogGetCurrentEventInfo()`) |
-| **Loss of Control (CC)** | String matching on `UI_ERROR_MESSAGE` ("while stunned", etc.) only on cast attempt | Native Loss of Control events (`C_LossOfControlModel` / `LOSS_OF_CONTROL_ADDED` / `UNIT_AURA`) |
-| **Disarm Detection** | Error string match + checking inventory slot 16 | Dedicated aura/loss-of-control checks + weapon slot validation |
+| **Combat Failure Detection** | Chat log regex matching (`CHAT_MSG_SPELL_SELF_DAMAGE`) | Unit events: cast intent (`UNIT_SPELLCAST_SENT`) correlated with the result on the target (`UNIT_COMBAT`) and `UI_ERROR_MESSAGE`; `COMBAT_LOG_EVENT_UNFILTERED` is forbidden for addons on Forever |
+| **Loss of Control (CC)** | String matching on `UI_ERROR_MESSAGE` ("while stunned", etc.) only on cast attempt | Native Loss of Control events (`LOSS_OF_CONTROL_ADDED` / `LOSS_OF_CONTROL_UPDATE` + `C_LossOfControl.GetActiveLossOfControlData`) with a `UI_ERROR_MESSAGE` fallback |
+| **Disarm Detection** | Error string match + checking inventory slot 16 | Loss-of-control `DISARM` type + error text + main-hand weapon check (`GetInventoryItemLink`) |
 | **Threat System** | Proprietary string parsing of `CHAT_MSG_ADDON` (`TWTv4=` protocol) + 2s polling frame | Native Modern Threat API (`UnitDetailedThreatSituation`) + modular provider interface |
 | **Group / Raid APIs** | `GetNumRaidMembers()`, `GetNumPartyMembers()`, `GetRaidRosterInfo()` | `IsInRaid()`, `IsInGroup()`, `GetNumGroupMembers()`, `UnitIsGroupLeader()`, `UnitIsGroupAssistant()` |
 | **Raid Target Icons** | Manually parsed color strings (`|cffFFFF00[Star]|r`) | Native chat tokens (`{rt1}`..`{rt8}`) and UI textures |
-| **Settings / GUI** | Manual 1.12 `CreateFrame` with `OptionsCheckButtonTemplate` & `getglobal()` | Modern Settings API (`Settings.RegisterAddOnCategory` / Canvas UI) |
+| **Settings / GUI** | Manual 1.12 `CreateFrame` with `OptionsCheckButtonTemplate` & `getglobal()` | Standalone `ButtonFrameTemplate` window opened with `/ta` (class-icon portrait, sections, `UICheckButtonTemplate` / `MinimalSliderWithSteppersTemplate`, channel radios). Not registered in the Settings panel: doing that at load caused a blocked action |
 | **Localization** | Hardcoded English regex patterns | Decoupled localization table (`Locales/`) & Spell ID references |
 
 ---
@@ -86,9 +86,8 @@ TankAlertForever/
   - In modern client builds (1.60.1 / 12.0+), `COMBAT_LOG_EVENT_UNFILTERED` is restricted from third-party addons (`ADDON_ACTION_FORBIDDEN`).
   - TankAlertForever uses the modern secure event pipeline:
     1. `UNIT_SPELLCAST_SENT`: Captures player cast intent, target, and spell ID.
-    2. `COMBAT_TEXT_UPDATE`: Captures combat avoidance resolutions (`MISS`, `DODGE`, `PARRY`, `BLOCK`, `RESIST`, `IMMUNE`, `DEFLECT`, `REFLECT`).
+    2. `UNIT_COMBAT` on target/focus/mouseover within 1.5 s of the cast: avoidance results (`MISS`, `DODGE`, `PARRY`, `BLOCK`, `RESIST`, `IMMUNE`, `DEFLECT`, `REFLECT`, `EVADE`); `WOUND` = it landed.
     3. `UI_ERROR_MESSAGE`: Captures out-of-range, facing, and immunity errors.
-    4. `COMBAT_LOG_MESSAGE`: Fallback for text combat log messages where supported.
 - **Evaluation Pipeline**:
   ```mermaid
   flowchart TD
@@ -96,7 +95,7 @@ TankAlertForever/
       B -- Yes --> C{Is spell tracked for player's class?}
       C -- Yes --> D[Record Active Cast & Target Context]
       D --> E[Wait for Combat Resolution]
-      E --> F{COMBAT_TEXT_UPDATE / UI_ERROR_MESSAGE}
+      E --> F{UNIT_COMBAT / UI_ERROR_MESSAGE}
       F -- Avoidance Detected --> G[Format Alert with Target & Raid Icon]
       G --> H[Dispatch to TAF.Announcer]
   ```
@@ -161,9 +160,10 @@ TankAlertForever/
 
 ### 4.6. UI & Configuration System (`UI/Options.lua`)
 - **Integration**:
-  - Integrates with the modern WoW Settings Category API (`Settings.RegisterCanvasLayoutCategory` or standard interface options fallback).
+  - Standalone window (`ButtonFrameTemplate`), built lazily on first `/ta` and closable with Esc. Not registered with the Settings panel: registering at load caused a blocked action on the Forever beta.
+  - No `WowStyle1DropdownTemplate` menus: opening an addon dropdown crashes the Forever beta client (Lua assertion in `Blizzard_Menu`), so choices use radio-style checkboxes.
 - **Control Layout**:
-  1. **Global Settings**: Master toggle, Alert throttle slider, Output channel dropdown/radios.
+  1. **Global Settings**: Master toggle, Alert throttle slider, Output channel radios (Auto / Say / Party / Raid / Raid Warning).
   2. **Alert Types**: CC alerts toggle, Disarm alerts toggle.
   3. **Threat Whispers**: Enable whispers toggle, "Only if I am Tank" toggle, Threat threshold slider (50% - 100%), Whisper throttle slider (5s - 30s).
   4. **Class Abilities**: Dynamically generated checkboxes based on player's current class and `Data/SpellData.lua`.

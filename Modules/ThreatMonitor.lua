@@ -47,7 +47,7 @@ local function CheckThreat()
         local okUnit, unitExists = pcall(UnitExists, unit)
         if okUnit and unitExists and not UnitIsUnit(unit, "player") and not UnitIsDeadOrGhost(unit) then
             local okSit, isMemberTanking, _, threatPct, rawThreatPct = pcall(UnitDetailedThreatSituation, unit, "target")
-            
+
             -- Skip if check failed or if the member is actively tanking (e.g. co-tank taunt)
             if okSit and (TAF.Utils.IsSecret(isMemberTanking) or not isMemberTanking) then
                 local pct = threatPct or rawThreatPct

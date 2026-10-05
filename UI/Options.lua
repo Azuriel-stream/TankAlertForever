@@ -83,32 +83,28 @@ local function CreateSectionHeader(parent, text, y)
     return header
 end
 
--- UI Helper: modern menu dropdown (radio list) for the output channel
+-- UI Helper: output channel as a row of radio-style checkboxes.
+-- Not a WowStyle1Dropdown: opening an addon dropdown menu crashes the Forever beta client
+-- (Lua assertion in Blizzard_Menu AcquireMenu; workspace kb/gotchas.md#menu-crash).
 local CHANNELS = {
-    { key = "auto", label = "CHAN_AUTO" },
-    { key = "say", label = "CHAN_SAY" },
-    { key = "party", label = "CHAN_PARTY" },
-    { key = "raid", label = "CHAN_RAID" },
-    { key = "raid_warning", label = "CHAN_RAID_WARNING" },
+    { key = "auto", label = "CHAN_AUTO_SHORT", tooltip = "CHAN_AUTO_DESC", x = 14 },
+    { key = "say", label = "CHAN_SAY", x = 110 },
+    { key = "party", label = "CHAN_PARTY", x = 194 },
+    { key = "raid", label = "CHAN_RAID", x = 288 },
+    { key = "raid_warning", label = "CHAN_RAID_WARNING", x = 376 },
 }
 
-local function CreateChannelDropdown(parent)
-    local dropdown = CreateFrame("DropdownButton", nil, parent, "WowStyle1DropdownTemplate")
-    dropdown:SetWidth(220)
-
-    local function IsSelected(key)
-        return TAF:GetGlobalOption("forceChannel") == key
+local function CreateChannelRadios(parent, y)
+    local radios = {}
+    for _, ch in ipairs(CHANNELS) do
+        local cb = CreateCheckbox(parent, L[ch.label], ch.tooltip and L[ch.tooltip] or nil, function()
+            TAF:SetGlobalOption("forceChannel", ch.key)
+            for key, other in pairs(radios) do other:SetChecked(key == ch.key) end
+        end)
+        cb:SetPoint("TOPLEFT", ch.x, y)
+        radios[ch.key] = cb
     end
-    local function SetSelected(key)
-        TAF:SetGlobalOption("forceChannel", key)
-    end
-
-    dropdown:SetupMenu(function(_, rootDescription)
-        for _, ch in ipairs(CHANNELS) do
-            rootDescription:CreateRadio(L[ch.label], IsSelected, SetSelected, ch.key)
-        end
-    end)
-    return dropdown
+    return radios
 end
 
 -- Build Configuration Frame
@@ -184,8 +180,7 @@ local function CreateOptionsPanel()
 
     -- 3. Output channel
     CreateSectionHeader(content, L["UI_SECTION_CHANNEL"], -240)
-    widgets.channel = CreateChannelDropdown(content)
-    widgets.channel:SetPoint("TOPLEFT", 18, -270)
+    widgets.channels = CreateChannelRadios(content, -268)
 
     -- 4. Tracked class abilities
     local pClass = TAF.playerClass or "WARRIOR"
@@ -248,7 +243,9 @@ local function CreateOptionsPanel()
         widgets.threshold:SetValue(g.threatWhisperThreshold)
         widgets.whisperThrottle:SetValue(g.whisperThrottle)
 
-        widgets.channel:GenerateMenu()
+        for key, cb in pairs(widgets.channels) do
+            cb:SetChecked(g.forceChannel == key)
+        end
 
         for name, cb in pairs(widgets.abilities) do
             cb:SetChecked(TAF:IsAbilityTracked(pClass, name))
@@ -332,6 +329,8 @@ local function HandleSlashCommands(msg)
         else
             TAF:Print("Available test options: |cffFFFFFF/ta test miss|r, |cffFFFFFF/ta test cc|r, |cffFFFFFF/ta test disarm|r, |cffFFFFFF/ta test whisper [target]|r")
         end
+    elseif cmd == "debug" and (arg == "on" or arg == "off") then
+        TAF:SetDebugMode(arg == "on")
     elseif cmd == "debug" then
         local func = _G["TAF_BLOCKED_FUNC"] or (TAF.db and TAF.db._lastBlockedFunction) or "None recorded"
         local evt = _G["TAF_BLOCKED_EVENT"] or (TAF.db and TAF.db._lastBlockedEvent) or "None recorded"

@@ -483,12 +483,6 @@ function TAF.Utils.GetSpellDisplay(spellID, fallbackName)
                 link = spellLink
             end
         end
-        if not link and GetSpellLink then
-            local ok, spellLink = pcall(GetSpellLink, spellID)
-            if ok and spellLink and not TAF.Utils.IsSecret(spellLink) and spellLink ~= "" then
-                link = spellLink
-            end
-        end
     end
 
     if link then

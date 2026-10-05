@@ -19,16 +19,28 @@ return function(sim, t)
     w.cc:Click()
     t.eq(db.global.announceCC, not before, "CC checkbox toggles announceCC")
 
-    -- Channel dropdown is a radio menu with one entry per channel.
-    local items = w.channel._menuItems
-    t.eq(#items, 5, "channel dropdown lists 5 channels")
-    for _, item in ipairs(items) do
-        if item.data == "raid" then item.Pick() end
-    end
+    -- Channel radios (a dropdown menu crashed the beta client), exactly one selected
+    local count = 0
+    for _ in pairs(w.channels) do count = count + 1 end
+    t.eq(count, 5, "5 channel options")
+    w.channels.raid:Click()
     t.eq(db.global.forceChannel, "raid", "channel selection is saved")
     local selected = 0
-    for _, item in ipairs(w.channel._menuItems) do if item.IsSelected() then selected = selected + 1 end end
+    for _, cb in pairs(w.channels) do if cb:GetChecked() then selected = selected + 1 end end
     t.eq(selected, 1, "exactly one channel is selected")
+    w.channels.raid:Click()
+    t.ok(w.channels.raid:GetChecked(), "clicking the selected channel keeps it selected")
+    for _, f in ipairs(sim.frames) do
+        t.ok(f._type ~= "DropdownButton", "no Blizzard menu dropdowns")
+    end
+
+    -- Diagnostics are opt-in: nothing changed CVars at load; /ta debug on|off does
+    t.eq(sim.cvars.scriptErrors, nil, "no CVars changed at load")
+    sim:Slash("/ta debug on")
+    t.eq(sim.cvars.scriptErrors, "1", "/ta debug on shows Lua errors")
+    t.eq(sim.cvars.taintLog, "1", "/ta debug on logs taint")
+    sim:Slash("/ta debug off")
+    t.eq(sim.cvars.taintLog, "0", "/ta debug off stops taint logging")
 
     -- Template close button hides the panel.
     panel.CloseButton:Click()

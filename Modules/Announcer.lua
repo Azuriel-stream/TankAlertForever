@@ -97,15 +97,7 @@ function Announcer:SendMessage(message, channel)
         return
     end
 
-    local sent = false
-    if C_ChatInfo and C_ChatInfo.SendChatMessage then
-        local ok = pcall(C_ChatInfo.SendChatMessage, safeMsg, channel)
-        sent = ok
-    elseif SendChatMessage then
-        local ok = pcall(SendChatMessage, safeMsg, channel)
-        sent = ok
-    end
-
+    local sent = pcall(C_ChatInfo.SendChatMessage, safeMsg, channel)
     if not sent then
         TAF:Print(safeMsg)
     end
@@ -222,13 +214,7 @@ function Announcer:SendWhisper(recipientName, threatPercent, mobName)
 
     local msg = string.format(TAF.L["ALERT_THREAT_WHISPER"], math.floor(safePct), safeMob)
 
-    if C_ChatInfo and C_ChatInfo.SendChatMessage then
-        pcall(C_ChatInfo.SendChatMessage, msg, "WHISPER", nil, safeRecipient)
-    elseif SendChatMessage then
-        pcall(SendChatMessage, msg, "WHISPER", nil, safeRecipient)
-    else
-        print("[TankAlert Whisper -> " .. safeRecipient .. "]: " .. msg)
-    end
+    pcall(C_ChatInfo.SendChatMessage, msg, "WHISPER", nil, safeRecipient)
 end
 
 -- =========================================================================
@@ -265,8 +251,9 @@ local function TankAlertMessageFilter(self, event, msg, author, ...)
     return false, msg, author, ...
 end
 
--- ChatFrame_AddMessageEventFilter is only a Blizzard_DeprecatedChatInfo alias for ChatFrameUtil.AddMessageEventFilter.
-local AddMessageEventFilter = (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter) or ChatFrame_AddMessageEventFilter
+-- ChatFrameUtil.AddMessageEventFilter: the global ChatFrame_AddMessageEventFilter is only a deprecation shim
+-- (nil unless the loadDeprecationFallbacks CVar is on).
+local AddMessageEventFilter = ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter
 if AddMessageEventFilter then
     for _, event in ipairs({
         "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",

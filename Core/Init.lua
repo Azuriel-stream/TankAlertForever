@@ -17,6 +17,7 @@ local securityFrame = CreateFrame("Frame", "TAF_SecurityFrame")
 pcall(securityFrame.RegisterEvent, securityFrame, "ADDON_ACTION_BLOCKED")
 pcall(securityFrame.RegisterEvent, securityFrame, "ADDON_ACTION_FORBIDDEN")
 securityFrame:SetScript("OnEvent", function(self, event, addonName, functionName)
+    if addonName ~= ADDON_NAME then return end -- only actions blamed on this addon
     local stack = (debugstack and debugstack(2, 8, 8)) or "No stack available"
     _G["TAF_BLOCKED_FUNC"] = functionName
     _G["TAF_BLOCKED_STACK"] = stack
@@ -54,6 +55,17 @@ function TAF:Print(msg, ...)
     end
 
     print("|cff00FF7F[TankAlert]|r " .. msg)
+end
+
+-- Opt-in diagnostics (/ta debug on|off): Lua error popups and taint logging (Logs\taint.log).
+-- These are client-wide CVars that persist, so they're only changed when the player asks.
+function TAF:SetDebugMode(enabled)
+    if TAF.db and TAF.db.global then
+        TAF.db.global.debugMode = enabled and true or false
+    end
+    pcall(SetCVar, "scriptErrors", enabled and "1" or "0")
+    pcall(SetCVar, "taintLog", enabled and "1" or "0")
+    TAF:Print(enabled and TAF.L["DEBUG_ON"] or TAF.L["DEBUG_OFF"])
 end
 
 -- Module Registration
@@ -125,19 +137,11 @@ local function OnEvent(self, event, arg1, ...)
     if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
         if not TAF.isInitialized then
             TAF.isInitialized = true
-            
+
             -- Initialize Database Configuration
             if type(TAF.InitConfig) == "function" then
                 TAF:InitConfig()
             end
-
-            -- Enable script errors and taint logging automatically
-            pcall(function()
-                if SetCVar then
-                    SetCVar("scriptErrors", "1")
-                    SetCVar("taintLog", "1")
-                end
-            end)
 
             -- Initialize Modules
             for name, mod in pairs(TAF.modules) do

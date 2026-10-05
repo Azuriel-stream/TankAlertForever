@@ -44,12 +44,6 @@ local function OnSpellcastSent(unit, target, castGUID, spellID)
                 spellName = TAF.Utils.SafeString(name, "")
             end
         end
-        if spellName == "" and GetSpellInfo then
-            local ok, name = pcall(GetSpellInfo, resolvedSpellID)
-            if ok and name then
-                spellName = TAF.Utils.SafeString(name, "")
-            end
-        end
     elseif rawSpellName and rawSpellName ~= "" then
         spellName = rawSpellName
     end

@@ -92,13 +92,8 @@ local function OnLossOfControlAdded(eventIndex)
     local locType = TAF.Utils.SafeString(data.locType, "")
     local spellName = TAF.Utils.SafeString(data.name, "")
     if spellName == "" and data.spellID and not TAF.Utils.IsSecret(data.spellID) then
-        if C_Spell and C_Spell.GetSpellName then
-            local okName, name = pcall(C_Spell.GetSpellName, data.spellID)
-            if okName then spellName = TAF.Utils.SafeString(name, "") end
-        elseif GetSpellInfo then
-            local okInfo, name = pcall(GetSpellInfo, data.spellID)
-            if okInfo then spellName = TAF.Utils.SafeString(name, "") end
-        end
+        local okName, name = pcall(C_Spell.GetSpellName, data.spellID)
+        if okName then spellName = TAF.Utils.SafeString(name, "") end
     end
     local alertType = nil
 
