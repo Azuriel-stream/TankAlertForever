@@ -65,8 +65,7 @@ local function OnSpellcastSent(unit, target, castGUID, spellID)
     -- Target resolution with secret-value protection (WoW 12.0+ compatibility)
     local safeTarget = TAF.Utils.SafeString(target, nil)
     if not safeTarget or safeTarget == "" or safeTarget == spellName or safeTarget:lower() == "target" then
-        local rawUnitTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
-        safeTarget = TAF.Utils.SafeString(rawUnitTarget, nil)
+        safeTarget = TAF.Utils.GetSafeUnitName("target", nil)
     end
 
     local cleanTarget = safeTarget
@@ -118,17 +117,22 @@ local function OnUnitCombat(unit, action, modifier, amount, damageType)
 
     local mappedMiss = MISS_TYPE_MAP[safeAction]
     if mappedMiss then
-        local rawTarget = nil
-        if activeCast.target and activeCast.target ~= "" and activeCast.target:lower() ~= "target" then
-            rawTarget = activeCast.target
+        local targetName = TAF.Utils.SafeString(activeCast.target, nil)
+        if targetName and (targetName == "" or targetName:lower() == "target") then
+            targetName = nil
         end
-        if not rawTarget or rawTarget == "" or rawTarget:lower() == "target" then
-            rawTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName(unit)) or UnitName(unit)
+
+        if not targetName and unit then
+            targetName = TAF.Utils.GetSafeUnitName(unit, nil)
         end
-        if not rawTarget or rawTarget == "" or rawTarget:lower() == "target" then
-            rawTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
+
+        if not targetName then
+            targetName = TAF.Utils.GetSafeUnitName("target", nil)
         end
-        local targetName = TAF.Utils.SafeString(rawTarget, "Target")
+
+        if not targetName or targetName == "" or targetName:lower() == "target" then
+            targetName = "Target"
+        end
 
         -- Resolve raid icon: check active unit first, fallback to cached castRaidIcon or current target/mouseover/focus
         local raidIcon = TAF.Utils.GetRaidTargetToken(unit)
@@ -217,8 +221,10 @@ end
 function AbilityAlerts:SimulateMiss(abilityName, missType, targetName)
     local testAbility = TAF.Utils.SafeString(abilityName, "Taunt")
     local testMiss = TAF.Utils.SafeString(missType, "RESISTED")
-    local rawTarget = targetName or (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
-    local testTarget = TAF.Utils.SafeString(rawTarget, "Target Dummy")
+    local testTarget = TAF.Utils.SafeString(targetName, nil)
+    if not testTarget or testTarget == "" or testTarget:lower() == "target" then
+        testTarget = TAF.Utils.GetSafeUnitName("target", "Target Dummy")
+    end
     local raidIcon = TAF.Utils.GetRaidTargetToken("target")
     if not raidIcon or raidIcon == "" then
         raidIcon = "{rt8}"

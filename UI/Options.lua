@@ -276,7 +276,7 @@ local function CreateOptionsPanel()
     btnWhisper:SetPoint("LEFT", btnDisarm, "RIGHT", 10, 0)
     btnWhisper:SetText("Test Whisper")
     btnWhisper:SetScript("OnClick", function()
-        local fullName = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
+        local fullName = TAF.Utils.GetSafeUnitName("player", "Player")
         TAF.ThreatMonitor:SimulateWhisper(fullName, 95)
     end)
 
@@ -375,7 +375,7 @@ local function HandleSlashCommands(msg)
             TAF.LossOfControl:SimulateDisarm()
         elseif string.sub(arg, 1, 7) == "whisper" then
             local customTarget = string.match(arg, "^whisper%s+(.+)$")
-            local target = customTarget or (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("player")) or UnitName("player")
+            local target = customTarget or TAF.Utils.GetSafeUnitName("player", "Player")
             TAF.ThreatMonitor:SimulateWhisper(target, 95)
         elseif arg == "miss" or arg == "" then
             local pClass = TAF.playerClass or "WARRIOR"

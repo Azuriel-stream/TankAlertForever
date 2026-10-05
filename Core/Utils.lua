@@ -24,9 +24,13 @@ function TAF.Utils.IsSecret(val)
         end
     end
 
-    -- Universal fallback guard: test if equality check throws in protected call
+    -- Universal fallback guard: test if equality or concatenation checks throw in protected call
     local ok = pcall(function() local _ = (val == "") end)
     if not ok then
+        return true
+    end
+    local okConcat = pcall(function() local _ = (val .. "") end)
+    if not okConcat then
         return true
     end
 
@@ -153,6 +157,37 @@ function TAF.Utils.GetUnitFullName(unit)
     end
 
     return name
+end
+
+-- Safely retrieve unit name without exposing secret values or throwing comparison errors
+function TAF.Utils.GetSafeUnitName(unit, fallback)
+    if not unit then return fallback end
+
+    local name = nil
+    if TAF.Utils and TAF.Utils.GetUnitFullName then
+        local ok, fullName = pcall(TAF.Utils.GetUnitFullName, unit)
+        if ok and fullName then
+            name = TAF.Utils.SafeString(fullName, nil)
+        end
+    end
+
+    if not name or name == "" or (name:lower() == "target" and unit ~= "target") then
+        if UnitName then
+            local ok, raw = pcall(UnitName, unit)
+            if ok and raw then
+                local safe = TAF.Utils.SafeString(raw, nil)
+                if safe and safe ~= "" then
+                    name = safe
+                end
+            end
+        end
+    end
+
+    if name and name ~= "" and name:lower() ~= "target" then
+        return name
+    end
+
+    return fallback
 end
 
 -- Raid Target Icon Visual Textures (Inline FontString escape sequences)

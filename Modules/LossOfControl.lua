@@ -73,8 +73,7 @@ local function TriggerAlert(alertType)
         return
     end
 
-    local rawTarget = (TAF.Utils and TAF.Utils.GetUnitFullName and TAF.Utils.GetUnitFullName("target")) or UnitName("target")
-    local targetName = TAF.Utils.SafeString(rawTarget, nil)
+    local targetName = TAF.Utils.GetSafeUnitName("target", nil)
     local raidIcon = TAF.Utils.GetRaidTargetToken("target")
 
     if alertType == "DISARMED" then
