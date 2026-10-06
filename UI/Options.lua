@@ -186,6 +186,11 @@ local function CreateOptionsPanel()
     local pClass = TAF.playerClass or "WARRIOR"
     CreateSectionHeader(content, string.format(L["UI_SECTION_ABILITIES"], pClass), -310)
 
+    widgets.quietThreat = CreateCheckbox(content, L["OPT_QUIET_THREAT"], L["OPT_QUIET_THREAT_DESC"], function(checked)
+        TAF:SetGlobalOption("quietWhenThreatSolid", checked)
+    end)
+    widgets.quietThreat:SetPoint("TOPLEFT", 14, -338)
+
     widgets.abilities = {}
     local abilityOrder = TAF.SpellData and TAF.SpellData.Order and TAF.SpellData.Order[pClass]
     if abilityOrder and #abilityOrder > 0 then
@@ -195,12 +200,12 @@ local function CreateOptionsPanel()
                 TAF:SetAbilityTracked(pClass, capturedName, checked)
             end)
             local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
-            cb:SetPoint("TOPLEFT", 14 + col * 254, -338 - row * 28)
+            cb:SetPoint("TOPLEFT", 14 + col * 254, -366 - row * 28)
             widgets.abilities[capturedName] = cb
         end
     else
         local noAbText = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        noAbText:SetPoint("TOPLEFT", 18, -342)
+        noAbText:SetPoint("TOPLEFT", 18, -370)
         noAbText:SetText(string.format(L["UI_NO_ABILITIES"], pClass))
     end
 
@@ -238,6 +243,7 @@ local function CreateOptionsPanel()
         widgets.disarm:SetChecked(g.announceDisarm)
         widgets.whisper:SetChecked(g.announceThreatWhisper)
         widgets.tankOnly:SetChecked(g.onlyTankWhispers)
+        widgets.quietThreat:SetChecked(g.quietWhenThreatSolid)
 
         widgets.alertThrottle:SetValue(g.alertThrottle)
         widgets.threshold:SetValue(g.threatWhisperThreshold)
@@ -311,6 +317,7 @@ local function HandleSlashCommands(msg)
         TAF:Print(L["CMD_STATUS_CHANNEL"], string.upper(g.forceChannel))
         TAF:Print(L["CMD_STATUS_CC"], g.announceCC and "|cff00FF00ON|r" or "|cffFF0000OFF|r")
         TAF:Print(L["CMD_STATUS_DISARM"], g.announceDisarm and "|cff00FF00ON|r" or "|cffFF0000OFF|r")
+        TAF:Print(L["CMD_STATUS_QUIET"], g.quietWhenThreatSolid and "|cff00FF00ON|r" or "|cffFF0000OFF|r")
         TAF:Print(L["CMD_STATUS_WHISPER"], g.announceThreatWhisper and "|cff00FF00ON|r" or "|cffFF0000OFF|r", g.threatWhisperThreshold)
     elseif cmd == "test" then
         if arg == "cc" then

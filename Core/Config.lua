@@ -7,6 +7,7 @@ TAF.DefaultConfig = {
         announceCC = true,
         announceDisarm = true,
         alertThrottle = 8,              -- seconds
+        quietWhenThreatSolid = true,    -- skip non-taunt miss alerts while well ahead on threat
         announceThreatWhisper = true,
         threatWhisperThreshold = 90,     -- percentage (50 - 100)
         whisperThrottle = 15,           -- seconds

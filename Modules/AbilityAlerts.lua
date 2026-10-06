@@ -19,6 +19,26 @@ local MISS_TYPE_MAP = {
     ["EVADE"]   = "EVADED",
 }
 
+-- Solid threat: first on the mob's threat list and well ahead of second place (lead state 0 of 0-3).
+-- UnitThreatLeadSituation is SecretWhenUnitThreatStateRestricted; player vs target is readable in combat
+-- (workspace kb/restrictions.md). Unknown (nil or secret) is not solid, so the alert still goes out.
+local function HasSolidThreat(unit)
+    if not UnitThreatLeadSituation then return false end
+    local ok, lead = pcall(UnitThreatLeadSituation, "player", unit)
+    if not ok or lead == nil or TAF.Utils.IsSecret(lead) then return false end
+    return lead == 0
+end
+
+-- Taunts are always announced; other abilities stay quiet while threat is solid (option quietWhenThreatSolid).
+local function IsQuietForThreat(cast, unit, failText)
+    if cast.isTaunt or not TAF:GetGlobalOption("quietWhenThreatSolid") then return false end
+    if not HasSolidThreat(unit) then return false end
+    if TAF:GetGlobalOption("debugMode") then
+        TAF:Print(TAF.L["DEBUG_QUIET_THREAT"], cast.abilityName, failText)
+    end
+    return true
+end
+
 -- 1. Track player cast intent of monitored abilities
 local function OnSpellcastSent(unit, target, castGUID, spellID)
     if unit ~= "player" then return end
@@ -76,8 +96,12 @@ local function OnSpellcastSent(unit, target, castGUID, spellID)
         castRaidIcon = TAF.Utils.GetRaidTargetToken("mouseover")
     end
 
+    local classAbilities = TAF.SpellData.Abilities[TAF.playerClass]
+    local abilityData = classAbilities and classAbilities[abilityName]
+
     activeCast = {
         abilityName = abilityName,
+        isTaunt = abilityData and abilityData.isTaunt or false,
         target = cleanTarget,
         raidIcon = castRaidIcon,
         timestamp = GetTime(),
@@ -110,6 +134,11 @@ local function OnUnitCombat(unit, action, modifier, amount, damageType)
     end
 
     local mappedMiss = MISS_TYPE_MAP[safeAction]
+    if mappedMiss and IsQuietForThreat(activeCast, unit, mappedMiss) then
+        activeCast = nil
+        return
+    end
+
     if mappedMiss then
         local targetName = TAF.Utils.SafeString(activeCast.target, nil)
         if targetName and (targetName == "" or targetName:lower() == "target") then
@@ -169,6 +198,11 @@ local function OnUIErrorMessage(errorType, message)
         missType = "OUT OF RANGE"
     elseif string.find(lower, "interrupted") then
         missType = "INTERRUPTED"
+    end
+
+    if missType and IsQuietForThreat(activeCast, "target", missType) then
+        activeCast = nil
+        return
     end
 
     if missType then
