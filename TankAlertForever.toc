@@ -3,6 +3,7 @@
 ## Notes: Modern combat failure alerts, loss-of-control notifications, and intelligent threat whispers for tanks.
 ## Author: Azuriel
 ## Version: 2.0.0
+## IconTexture: Interface\AddOns\TankAlertForever\Media\icon.tga
 ## SavedVariables: TankAlertForeverDB
 
 # Locales
