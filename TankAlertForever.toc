@@ -4,6 +4,7 @@
 ## Author: Azuriel
 ## Version: 2.0.0
 ## IconTexture: Interface\AddOns\TankAlertForever\Media\icon.tga
+## Category: Tanking
 ## SavedVariables: TankAlertForeverDB
 
 # Locales
