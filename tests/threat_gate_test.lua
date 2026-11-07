@@ -28,6 +28,9 @@ return function(sim, t)
     local sunder = castAndAvoid(7386, "PARRY")
     t.eq(#sunder, 1, "Sunder parry announced when the lead is yellow")
     t.ok(sunder[1] and sunder[1]:find("PARRIED"), "Sunder alert says PARRIED")
+    -- Ranked spell links corrupt the rest of a sent chat message on Forever: names go out as plain text.
+    t.ok(sunder[1] and not sunder[1]:find("|H", 1, true), "alert contains no spell link")
+    t.ok(sunder[1] and sunder[1]:find("[Sunder Armor]", 1, true), "alert names the spell as plain [Name]")
     sim.units.player.threatLead = 3
     t.eq(#castAndAvoid(23922, "MISS"), 1, "Shield Slam miss announced when not top on threat")
 

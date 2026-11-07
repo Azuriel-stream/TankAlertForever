@@ -121,7 +121,7 @@ function Announcer:SendAbilityAlert(abilityName, failureType, targetName, raidIc
     local targetFormatted = TAF.Utils.FormatTargetWithIcon(targetName, raidIcon)
     local safeFail = TAF.Utils.SafeString(failureType, "FAILED")
     local localizedFail = TAF.L[safeFail] or safeFail
-    local abilityDisplay = (TAF.Utils and TAF.Utils.GetSpellDisplay and TAF.Utils.GetSpellDisplay(spellID, safeAbility)) or ("[" .. safeAbility .. "]")
+    local abilityDisplay = TAF.Utils.GetSpellDisplay(safeAbility)
     local msg = ""
 
     if channel == "RAID_WARNING" then

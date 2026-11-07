@@ -473,23 +473,12 @@ function TAF.Utils.FormatTargetWithIcon(targetName, raidIcon)
     return safeTarget
 end
 
--- Helper to format spell display with interactive hyperlink when available
-function TAF.Utils.GetSpellDisplay(spellID, fallbackName)
-    local link = nil
-    if spellID and type(spellID) == "number" and spellID > 0 then
-        if C_Spell and C_Spell.GetSpellLink then
-            local ok, spellLink = pcall(C_Spell.GetSpellLink, spellID)
-            if ok and spellLink and not TAF.Utils.IsSecret(spellLink) and spellLink ~= "" then
-                link = spellLink
-            end
-        end
-    end
-
-    if link then
-        return link
-    end
-
-    local safeName = TAF.Utils.SafeString(fallbackName, "Ability")
+-- Spell name as plain "[Name]" text for chat messages.
+-- Deliberately NOT a spell link: on Forever, sending a ranked spell link ("[Revenge (Rank 1)]") followed by
+-- more text corrupts the message for every reader (characters after the link get shifted, e.g.
+-- "Elder Gray Bear! << " -> "Elday Bear! << ! << ") [in-game]. See kb/gotchas.md#spell-link-chat.
+function TAF.Utils.GetSpellDisplay(name)
+    local safeName = TAF.Utils.SafeString(name, "Ability")
     if string.sub(safeName, 1, 1) == "[" and string.sub(safeName, -1) == "]" then
         return safeName
     end
