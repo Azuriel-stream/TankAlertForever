@@ -1,5 +1,10 @@
 # TankAlert Forever
 
+> **This addon is now part of [Bulwark](https://github.com/Azuriel-stream/bulwark)**, a tanking suite with combat
+> alerts, a pre-pull audit and one-key raid marking in one addon. This repository is archived and no longer updated.
+> To move over: install Bulwark and disable TankAlertForever. Bulwark keeps its Alerts area switched off while TankAlertForever
+> is still loaded, so nothing runs twice.
+
 **TankAlert Forever** is the modern rewrite of the popular Classic tank utility addon **TankAlert**, tailored for the **WoW: Forever** client environment.
 
 It assists tanks in communicating critical combat state changes and ability failures to their group automatically, while keeping group members informed of threat spikes.
